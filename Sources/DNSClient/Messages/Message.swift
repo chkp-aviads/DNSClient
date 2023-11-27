@@ -1,4 +1,5 @@
 import NIO
+import Logging
 import Foundation
 
 /// The header of a DNS message.
@@ -94,12 +95,132 @@ public enum DNSResourceType: UInt16 {
 
     /// A request for a text record. This is used for storing arbitrary text.
     case txt
+    
+    case rp
+    
+    case afsdb
+    
+    case x25
+    
+    case isdn
+    
+    case rt
+    
+    case nsap
+    
+    case nsapPtr
+    
+    case sig
+    
+    case key
+    
+    case px
+    
+    case gPos
 
     /// A request for an IPv6 address
     case aaaa = 28
+    
+    case loc
+    
+    case nxt
+    
+    case eid
+    
+    case nimLoc
 
     /// A request for an SRV record. This is used for service discovery.
     case srv = 33
+    
+    case atma
+    
+    case naptr
+    
+    case kX
+    
+    case cert
+    
+    case a6
+    
+    case dName
+    
+    case sink
+    
+    case opt
+    
+    case aPl
+    
+    case ds
+    
+    case sshFp
+    
+    case ipSeckey
+    
+    case rrSig
+    
+    case nSec
+    
+    case dnsKey
+    
+    case dHcid
+    
+    case nSec3
+    
+    case nSec3Param
+    
+    case tlsa
+    
+    case smimeAa
+    
+    case hip = 55
+    
+    case nInfo
+    
+    case rKey
+    
+    case tALink
+    
+    case cDs
+    
+    case cdNsKey
+    
+    case openPgpKey
+    
+    case cSync
+    
+    case zoneMD
+    
+    case svcb
+    
+    case https
+    
+    case spf = 99
+    
+    case uInfo
+    
+    case uId
+    
+    case gId
+    
+    case unSpec
+    
+    case nId
+    
+    case l32
+    
+    case l64
+    
+    case lP
+    
+    case eui48
+    
+    case eui64
+    
+    case tKey = 249
+    
+    case tSig
+    
+    case ixfr
     
     // QuestionType exclusive
 
@@ -114,6 +235,22 @@ public enum DNSResourceType: UInt16 {
 
     /// A request for all records
     case any = 255
+    
+    case uri
+    
+    case caa
+    
+    case avc
+    
+    case doa
+    
+    case amtRelay
+    
+    case resinfo
+    
+    case tA = 32768
+    
+    case dlv
 }
 
 public typealias QuestionType = DNSResourceType
@@ -418,4 +555,61 @@ public struct Message {
     public let answers: [Record]
     public let authorities: [Record]
     public let additionalData: [Record]
+}
+
+public extension Message {
+    init?(logger: Logger, buffer: ByteBuffer) {
+        var buffer = buffer
+        guard let header = buffer.readHeader() else {
+            return nil
+        }
+
+        var questions = [QuestionSection]()
+
+        for _ in 0..<header.questionCount {
+            guard let question = buffer.readQuestion() else {
+                return nil
+            }
+
+            questions.append(question)
+        }
+
+        func resourceRecords(count: UInt16) throws -> [Record] {
+            var records = [Record]()
+
+            for _ in 0..<count {
+                guard let record = buffer.readRecord() else {
+                    throw ProtocolError()
+                }
+
+                records.append(record)
+            }
+
+            return records
+        }
+
+        do {
+            let answers = try resourceRecords(count: header.answerCount)
+            let authorities = try resourceRecords(count: header.authorityCount)
+            let additionalData = try resourceRecords(count: header.additionalRecordCount)
+            
+            self = Message(
+                header: header,
+                questions: questions,
+                answers: answers,
+                authorities: authorities,
+                additionalData: additionalData
+            )
+        } catch let error {
+            logger.error("Failed to decode dns message: \(error)")
+            return nil
+        }
+    }
+    
+    func noDataResponse() -> Message {
+        // Returns an asnwer response for the given message questions with no answers
+        // This is used to represent that the DNS does not know the answer to the questions
+        let responseHeader = DNSMessageHeader(id: self.header.id, options: .answer, questionCount: self.header.questionCount, answerCount: 0, authorityCount: 0, additionalRecordCount: 0)
+        return Message(header: responseHeader, questions: self.questions, answers: [], authorities: [], additionalData: [])
+    }
 }

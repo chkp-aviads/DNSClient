@@ -47,18 +47,18 @@ final class UInt16FrameEncoder: MessageToByteEncoder {
     }
 }
 
-final class DNSEncoder: ChannelOutboundHandler {
-    typealias OutboundIn = Message
-    typealias OutboundOut = ByteBuffer
+public final class DNSEncoder: ChannelOutboundHandler {
+    public typealias OutboundIn = Message
+    public typealias OutboundOut = ByteBuffer
     
-    func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
+    public func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let message = unwrapOutboundIn(data)
         let data = DNSEncoder.encodeMessage(message, allocator: context.channel.allocator)
 
         context.write(wrapOutboundOut(data), promise: promise)
     }
     
-    static func encodeMessage(_ message: Message, allocator: ByteBufferAllocator) -> ByteBuffer {
+    public static func encodeMessage(_ message: Message, allocator: ByteBufferAllocator) -> ByteBuffer {
         var out = allocator.buffer(capacity: 512)
 
         let header = message.header
