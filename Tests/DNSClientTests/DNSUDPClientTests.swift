@@ -154,7 +154,7 @@ final class DNSUDPClientTests: XCTestCase {
         //  print("testPTRRecords2", answer.resource.domainName.string)
         // }
         
-        XCTAssertEqual(answers.count, 3, "The returned answers should be equal to 3")
+        XCTAssertEqual(answers.count, 4, "The returned answers should be equal to 4")
     }
     
     func testipv6InverseAddress() throws {

@@ -109,7 +109,7 @@ extension DNSClient {
             
             struct DNSTimeoutError: Error {}
             
-            self.loop.scheduleTask(in: .seconds(30)) {
+            self.loop.scheduleTask(in: .seconds(Int64(self.ttl))) {
                 promise.fail(DNSTimeoutError())
             }
 

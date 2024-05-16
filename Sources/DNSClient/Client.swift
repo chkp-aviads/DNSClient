@@ -7,6 +7,7 @@ public final class DNSClient: Resolver {
     let dnsDecoder: DNSDecoder
     let channel: Channel
     let primaryAddress: SocketAddress
+    let ttl : Int   // The interval in seconds that the network will use to for DNS TTL
     internal var isMulticast = false
     var loop: EventLoop {
         return channel.eventLoop
@@ -14,17 +15,19 @@ public final class DNSClient: Resolver {
     // Each query has an ID to keep track of which response belongs to which query
     var messageID: UInt16 = 0
     
-    internal init(channel: Channel, address: SocketAddress, decoder: DNSDecoder) {
+    internal init(channel: Channel, address: SocketAddress, decoder: DNSDecoder, ttl: Int = 30) {
         self.channel = channel
         self.primaryAddress = address
         self.dnsDecoder = decoder
+        self.ttl = ttl
     }
     
     /// Create a new `DNSClient` that will send queries to the specified address using your own `Channel`.
-    public init(channel: Channel, dnsServerAddress: SocketAddress, context: DNSClientContext) {
+    public init(channel: Channel, dnsServerAddress: SocketAddress, context: DNSClientContext, ttl: Int = 30) {
         self.channel = channel
         self.primaryAddress = dnsServerAddress
         self.dnsDecoder = context.decoder
+        self.ttl = ttl
     }
 
     deinit {

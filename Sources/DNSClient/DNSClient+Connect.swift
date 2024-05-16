@@ -6,8 +6,9 @@ extension DNSClient {
     ///
     /// - parameters:
     ///     - group: EventLoops to use
+    ///     - ttl: The interval in seconds that the network will use to for DNS TTL
     /// - returns: Future with the NioDNS client
-    public static func connect(on group: EventLoopGroup) -> EventLoopFuture<DNSClient> {
+    public static func connect(on group: EventLoopGroup, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         do {
             let configString = try String(contentsOfFile: "/etc/resolv.conf")
             let config = try ResolvConf(from: configString)
@@ -23,11 +24,12 @@ extension DNSClient {
     /// - parameters:
     ///     - group: EventLoops to use
     ///     - host: DNS host to connect to
+    ///     - ttl: The interval in seconds that the network will use to for DNS TTL
     /// - returns: Future with the NioDNS client
-    public static func connect(on group: EventLoopGroup, host: String) -> EventLoopFuture<DNSClient> {
+    public static func connect(on group: EventLoopGroup, host: String, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         do {
             let address = try SocketAddress(ipAddress: host, port: 53)
-            return connect(on: group, config: [address])
+            return connect(on: group, config: [address], ttl: ttl)
         } catch {
             return group.next().makeFailedFuture(error)
         }
@@ -36,11 +38,12 @@ extension DNSClient {
     /// Creates a multicast DNS client. This client will join the multicast group and listen for responses. It will also send queries to the multicast group.
     /// - parameters:
     ///    - group: EventLoops to use
-    public static func connectMulticast(on group: EventLoopGroup) -> EventLoopFuture<DNSClient> {
+    ///    -  ttl: The interval in seconds that the network will use to for DNS TTL
+    public static func connectMulticast(on group: EventLoopGroup, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         do {
             let address = try SocketAddress(ipAddress: "224.0.0.251", port: 5353)
             
-            return connect(on: group, config: [address]).flatMap { client in
+            return connect(on: group, config: [address], ttl: ttl).flatMap { client in
                 let channel = client.channel as! MulticastChannel
                 client.isMulticast = true
                 return channel.joinGroup(address).map { client }
@@ -54,13 +57,14 @@ extension DNSClient {
     ///
     /// - parameters:
     ///     - group: EventLoops to use
+    ///     - ttl: The interval in seconds that the network will use to for DNS TTL
     /// - returns: Future with the NioDNS client
-    public static func connectTCP(on group: EventLoopGroup) -> EventLoopFuture<DNSClient> {
+    public static func connectTCP(on group: EventLoopGroup, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         do {
             let configString = try String(contentsOfFile: "/etc/resolv.conf")
             let config = try ResolvConf(from: configString)
             
-            return connectTCP(on: group, config: config.nameservers)
+            return connectTCP(on: group, config: config.nameservers, ttl: ttl)
         } catch {
             return group.next().makeFailedFuture(UnableToParseConfig())
         }
@@ -71,11 +75,12 @@ extension DNSClient {
     /// - parameters:
     ///     - group: EventLoops to use
     ///     - host: DNS host to connect to
+    ///     -  ttl: The interval in seconds that the network will use to for DNS TTL
     /// - returns: Future with the NioDNS client
-    public static func connectTCP(on group: EventLoopGroup, host: String) -> EventLoopFuture<DNSClient> {
+    public static func connectTCP(on group: EventLoopGroup, host: String, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         do {
             let address = try SocketAddress(ipAddress: host, port: 53)
-            return connectTCP(on: group, config: [address])
+            return connectTCP(on: group, config: [address], ttl: ttl)
         } catch {
             return group.next().makeFailedFuture(error)
         }
@@ -104,8 +109,9 @@ extension DNSClient {
     /// - parameters:
     ///   - group: EventLoops to use
     ///  - config: DNS servers to connect to
+    ///  - ttl: The interval in seconds that the network will use to for DNS TTL
     /// - returns: Future with the NioDNS client
-    public static func connect(on group: EventLoopGroup, config: [SocketAddress]) -> EventLoopFuture<DNSClient> {
+    public static func connect(on group: EventLoopGroup, config: [SocketAddress], ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         guard let address = config.preferred else {
             return group.next().makeFailedFuture(MissingNameservers())
         }
@@ -130,7 +136,8 @@ extension DNSClient {
             let client = DNSClient(
                 channel: channel,
                 address: address,
-                decoder: dnsDecoder
+                decoder: dnsDecoder,
+                ttl: ttl
             )
 
             dnsDecoder.mainClient = client
@@ -142,8 +149,9 @@ extension DNSClient {
     /// - parameters:
     ///    - group: EventLoops to use
     ///    - config: DNS servers to connect to
+    ///    - ttl: The interval in seconds that the network will use to for DNS TTL
     /// - returns: Future with the NioDNS client
-    public static func connectTCP(on group: EventLoopGroup, config: [SocketAddress]) -> EventLoopFuture<DNSClient> {
+    public static func connectTCP(on group: EventLoopGroup, config: [SocketAddress], ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         guard let address = config.preferred else {
             return group.next().makeFailedFuture(MissingNameservers())
         }
@@ -164,7 +172,8 @@ extension DNSClient {
             let client = DNSClient(
                 channel: channel,
                 address: address,
-                decoder: dnsDecoder
+                decoder: dnsDecoder,
+                ttl: ttl
             )
             
             dnsDecoder.mainClient = client
@@ -197,8 +206,9 @@ extension DNSClient {
     /// - parameters:
     ///   - group: EventLoops to use
     ///   - config: DNS servers to use
-    /// - returns: Future with the NioDNS client. Use 
-    public static func connectTS(on group: NIOTSEventLoopGroup, config: [SocketAddress]) -> EventLoopFuture<DNSClient> {
+    ///   - ttl: The interval in seconds that the network will use to for DNS TTL
+    /// - returns: Future with the NioDNS client. Use
+    public static func connectTS(on group: NIOTSEventLoopGroup, config: [SocketAddress], ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         // Don't connect by UNIX domain socket. We currently don't intend to test & support that.
         guard
             let address = config.preferred,
@@ -218,7 +228,8 @@ extension DNSClient {
             let client = DNSClient(
                 channel: channel,
                 address: address,
-                decoder: dnsDecoder
+                decoder: dnsDecoder,
+                ttl: ttl
             )
 
             dnsDecoder.mainClient = client
@@ -230,21 +241,22 @@ extension DNSClient {
     /// The DNS Host is read from /etc/resolv.conf
     /// - parameters:
     ///   - group: EventLoops to use
-    public static func connectTS(on group: NIOTSEventLoopGroup) -> EventLoopFuture<DNSClient> {
+    ///   - ttl: The interval in seconds that the network will use to for DNS TTL
+    public static func connectTS(on group: NIOTSEventLoopGroup, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         do {
             let configString = try String(contentsOfFile: "/etc/resolv.conf")
             let config = try ResolvConf(from: configString)
 
-            return connectTS(on: group, config: config.nameservers)
+            return connectTS(on: group, config: config.nameservers, ttl: ttl)
         } catch {
             return group.next().makeFailedFuture(UnableToParseConfig())
         }
     }
 
-    public static func connectTSTCP(on group: NIOTSEventLoopGroup, host: String) -> EventLoopFuture<DNSClient> {
+    public static func connectTSTCP(on group: NIOTSEventLoopGroup, host: String, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         do {
             let address = try SocketAddress(ipAddress: host, port: 53)
-            return connectTSTCP(on: group, config: [address])
+            return connectTSTCP(on: group, config: [address], ttl: ttl)
         } catch {
             return group.next().makeFailedFuture(error)
         }
@@ -254,8 +266,9 @@ extension DNSClient {
     /// - parameters:
     ///   - group: EventLoops to use
     ///   - config: DNS servers to use
-    /// - returns: Future with the NioDNS client. Use 
-    public static func connectTSTCP(on group: NIOTSEventLoopGroup, config: [SocketAddress]) -> EventLoopFuture<DNSClient> {
+    ///   - ttl: The interval in seconds that the network will use to for DNS TTL
+    /// - returns: Future with the NioDNS client. Use
+    public static func connectTSTCP(on group: NIOTSEventLoopGroup, config: [SocketAddress], ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         guard let address = config.preferred else {
             return group.next().makeFailedFuture(MissingNameservers())
         }
@@ -275,7 +288,8 @@ extension DNSClient {
             let client = DNSClient(
                 channel: channel,
                 address: address,
-                decoder: dnsDecoder
+                decoder: dnsDecoder,
+                ttl: ttl
             )
 
             dnsDecoder.mainClient = client
@@ -287,12 +301,13 @@ extension DNSClient {
     /// The DNS Host is read from /etc/resolv.conf
     /// - parameters:
     ///   - group: EventLoops to use
-    public static func connectTSTCP(on group: NIOTSEventLoopGroup) -> EventLoopFuture<DNSClient> {
+    ///   - ttl: The interval in seconds that the network will use to for DNS TTL
+    public static func connectTSTCP(on group: NIOTSEventLoopGroup, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         do {
             let configString = try String(contentsOfFile: "/etc/resolv.conf")
             let config = try ResolvConf(from: configString)
 
-            return connectTSTCP(on: group, config: config.nameservers)
+            return connectTSTCP(on: group, config: config.nameservers, ttl: ttl)
         } catch {
             return group.next().makeFailedFuture(UnableToParseConfig())
         }
