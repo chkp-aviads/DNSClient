@@ -1,4 +1,6 @@
 import NIO
+import Network
+import NIOSSL
 import Foundation
 
 extension DNSClient {
@@ -86,6 +88,16 @@ extension DNSClient {
         }
     }
     
+    public static func connectDOT(on group: EventLoopGroup, host: String, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
+        do {
+            let address = try SocketAddress.makeAddressResolvingHost(host, port: 853)
+            let sslContext = try NIOSSLContext(configuration: .makeClientConfiguration())
+            return connectTCP(on: group, config: [address], sslContext: sslContext, ttl: ttl)
+        } catch {
+            return group.next().makeFailedFuture(error)
+        }
+    }
+    
     /// Set up the UDP channel to use the DNS protocol.
     /// - Parameters:
     ///   - channel: The UDP channel to use.
@@ -151,7 +163,7 @@ extension DNSClient {
     ///    - config: DNS servers to connect to
     ///    - ttl: The interval in seconds that the network will use to for DNS TTL
     /// - returns: Future with the NioDNS client
-    public static func connectTCP(on group: EventLoopGroup, config: [SocketAddress], ttl: Int = 30) -> EventLoopFuture<DNSClient> {
+    public static func connectTCP(on group: EventLoopGroup, config: [SocketAddress], sslContext: NIOSSLContext? = nil, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         guard let address = config.preferred else {
             return group.next().makeFailedFuture(MissingNameservers())
         }
@@ -160,12 +172,22 @@ extension DNSClient {
         
         let bootstrap = ClientBootstrap(group: group)
             .channelInitializer { channel in
-                return channel.pipeline.addHandlers(
-                    ByteToMessageHandler(UInt16FrameDecoder()),
-                    MessageToByteHandler(UInt16FrameEncoder()),
-                    dnsDecoder,
-                    DNSEncoder()
-                )
+                if let sslContext {
+                    return channel.pipeline.addHandlers(
+                        try! NIOSSLClientHandler(context: sslContext, serverHostname: nil),
+                        ByteToMessageHandler(UInt16FrameDecoder()),
+                        MessageToByteHandler(UInt16FrameEncoder()),
+                        dnsDecoder,
+                        DNSEncoder()
+                    )
+                } else {
+                    return channel.pipeline.addHandlers(
+                        ByteToMessageHandler(UInt16FrameDecoder()),
+                        MessageToByteHandler(UInt16FrameEncoder()),
+                        dnsDecoder,
+                        DNSEncoder()
+                    )
+                }
             }
         
         return bootstrap.connect(to: address).map { channel in
@@ -256,7 +278,17 @@ extension DNSClient {
     public static func connectTSTCP(on group: NIOTSEventLoopGroup, host: String, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         do {
             let address = try SocketAddress(ipAddress: host, port: 53)
-            return connectTSTCP(on: group, config: [address], ttl: ttl)
+            return connectTSTCP(on: group, config: [address], tls: nil, ttl: ttl)
+        } catch {
+            return group.next().makeFailedFuture(error)
+        }
+    }
+    
+    public static func connectTSDOT(on group: NIOTSEventLoopGroup, host: String, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
+        do {
+            let address = try SocketAddress.makeAddressResolvingHost(host, port: 853)
+            let options = NWProtocolTLS.Options()
+            return connectTSTCP(on: group, config: [address], tls: options, ttl: ttl)
         } catch {
             return group.next().makeFailedFuture(error)
         }
@@ -268,14 +300,17 @@ extension DNSClient {
     ///   - config: DNS servers to use
     ///   - ttl: The interval in seconds that the network will use to for DNS TTL
     /// - returns: Future with the NioDNS client. Use
-    public static func connectTSTCP(on group: NIOTSEventLoopGroup, config: [SocketAddress], ttl: Int = 30) -> EventLoopFuture<DNSClient> {
+    public static func connectTSTCP(on group: NIOTSEventLoopGroup, config: [SocketAddress], tls: NWProtocolTLS.Options? = nil, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         guard let address = config.preferred else {
             return group.next().makeFailedFuture(MissingNameservers())
         }
 
         let dnsDecoder = DNSDecoder(group: group)
-        
-        return NIOTSConnectionBootstrap(group: group).channelInitializer { channel in
+        let tsBootstrap = NIOTSConnectionBootstrap(group: group)
+        if let tls {
+            _ = tsBootstrap.tlsOptions(tls)
+        }
+        return tsBootstrap .channelInitializer { channel in
             return channel.pipeline.addHandlers(
                 ByteToMessageHandler(UInt16FrameDecoder()),
                 MessageToByteHandler(UInt16FrameEncoder()),
@@ -307,7 +342,7 @@ extension DNSClient {
             let configString = try String(contentsOfFile: "/etc/resolv.conf")
             let config = try ResolvConf(from: configString)
 
-            return connectTSTCP(on: group, config: config.nameservers, ttl: ttl)
+            return connectTSTCP(on: group, config: config.nameservers, tls: nil, ttl: ttl)
         } catch {
             return group.next().makeFailedFuture(UnableToParseConfig())
         }

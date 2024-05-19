@@ -38,6 +38,15 @@
         }
       },
       {
+        "package": "swift-nio-ssl",
+        "repositoryURL": "https://github.com/chkp-aviads/swift-nio-ssl.git",
+        "state": {
+          "branch": "main",
+          "revision": "0a126ae1396f617bd1fb3ef9780704edfbc8622d",
+          "version": null
+        }
+      },
+      {
         "package": "swift-nio-transport-services",
         "repositoryURL": "https://github.com/apple/swift-nio-transport-services.git",
         "state": {
