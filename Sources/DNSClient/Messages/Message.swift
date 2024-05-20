@@ -5,7 +5,7 @@ import Foundation
 /// The header of a DNS message.
 public struct DNSMessageHeader {
     /// The ID of the message. This is used to match responses to requests.
-    public internal(set) var id: UInt16
+    public var id: UInt16
     
     /// The flags of the message.
     public let options: MessageOptions
@@ -550,7 +550,7 @@ extension ByteBuffer {
 }
 
 public struct Message {
-    public internal(set) var header: DNSMessageHeader
+    public var header: DNSMessageHeader
     public let questions: [QuestionSection]
     public let answers: [Record]
     public let authorities: [Record]
