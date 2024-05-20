@@ -12,7 +12,7 @@ final class EnvelopeInboundChannel: ChannelInboundHandler {
     }
 }
 
-final class DNSDecoder: ChannelInboundHandler {
+final public class DNSDecoder: ChannelInboundHandler {
     let group: EventLoopGroup
     var messageCache = [UInt16: SentQuery]()
     var clients = [ObjectIdentifier: DNSClient]()
@@ -95,7 +95,7 @@ final class DNSDecoder: ChannelInboundHandler {
         }
     }
 
-    func errorCaught(context ctx: ChannelHandlerContext, error: Error) {
+    public func errorCaught(context ctx: ChannelHandlerContext, error: Error) {
         for query in self.messageCache.values {
             query.promise.fail(error)
         }

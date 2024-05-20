@@ -7,6 +7,7 @@
 
 import XCTest
 import NIO
+import NIOSSL
 @testable import DNSClient
 
 #if canImport(Network)
@@ -141,7 +142,7 @@ final class DNSDOTClientTests: XCTestCase {
     
     func testThreadSafety() async throws {
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        let client = try await DNSClient.connectTCP(
+        let client = try await DNSClient.connectDOT(
             on: eventLoopGroup.next(),
             host: "8.8.8.8"
         ).get()
@@ -152,7 +153,11 @@ final class DNSDOTClientTests: XCTestCase {
         
         _ = try await [result, result2, result3]
         
+        do {
         try await client.channel.close(mode: .all).get()
+        } catch NIOSSLError.uncleanShutdown {
+            // Nobody cares
+        }
     }
     
     func testAll() throws {

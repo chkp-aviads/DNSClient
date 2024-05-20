@@ -21,6 +21,15 @@ public struct DNSMessageHeader {
 
     /// The number of additional records in the message.
     public let additionalRecordCount: UInt16
+    
+    public init(id: UInt16, options: MessageOptions, questionCount: UInt16, answerCount: UInt16, authorityCount: UInt16, additionalRecordCount: UInt16) {
+        self.id = id
+        self.options = options
+        self.questionCount = questionCount
+        self.answerCount = answerCount
+        self.authorityCount = authorityCount
+        self.additionalRecordCount = additionalRecordCount
+    }
 }
 
 /// A label in a DNS message. This is a single part of a domain name. For example, `google` is a label in `google.com`. Labels are limited to 63 bytes and are not null terminated.
@@ -271,6 +280,12 @@ public struct QuestionSection {
     public let labels: [DNSLabel]
     public let type: QuestionType
     public let questionClass: DataClass
+    
+    public init(labels: [DNSLabel], type: QuestionType, questionClass: DataClass) {
+        self.labels = labels
+        self.type = type
+        self.questionClass = questionClass
+    }
 }
 
 /// A DNS message. This is the main type used for interacting with the DNS protocol.
@@ -555,6 +570,14 @@ public struct Message {
     public let answers: [Record]
     public let authorities: [Record]
     public let additionalData: [Record]
+    
+    public init(header: DNSMessageHeader, questions: [QuestionSection], answers: [Record], authorities: [Record], additionalData: [Record]) {
+        self.header = header
+        self.questions = questions
+        self.answers = answers
+        self.authorities = authorities
+        self.additionalData = additionalData
+    }
 }
 
 public extension Message {
