@@ -23,6 +23,15 @@ public protocol TTLResolver {
     ///     - port: The port we'll be connecting to.
     /// - returns: An `EventLoopFuture` that fires with the result of the lookup.
     func initiateTTLAAAAQuery(host: String, port: Int) -> EventLoopFuture<[(SocketAddress, Int)]>
+    
+    /// Cancel all outstanding DNS queries.
+    ///
+    /// This method is called whenever queries that have not completed no longer have their
+    /// results needed. The resolver should, if possible, abort any outstanding queries and
+    /// clean up their state.
+    ///
+    /// This method is not guaranteed to terminate the outstanding queries.
+    func cancelQueries()
 }
 
 extension DNSClient : TTLResolver {
