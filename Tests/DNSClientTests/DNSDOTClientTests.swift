@@ -14,6 +14,26 @@ import NIOSSL
 import NIOTransportServices
 #endif
 
+public extension Data {
+    public init?(base64urlEncoded input: String) {
+        var base64 = input
+        base64 = base64.replacingOccurrences(of: "-", with: "+")
+        base64 = base64.replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 {
+            base64 = base64.appending("=")
+        }
+        self.init(base64Encoded: base64)
+    }
+
+    public func base64urlEncodedString() -> String {
+        var result = self.base64EncodedString()
+        result = result.replacingOccurrences(of: "+", with: "-")
+        result = result.replacingOccurrences(of: "/", with: "_")
+        result = result.replacingOccurrences(of: "=", with: "")
+        return result
+    }
+}
+
 final class DNSDOTClientTests: XCTestCase {
     var group: MultiThreadedEventLoopGroup!
     var dnsClient: DNSClient!
@@ -38,6 +58,60 @@ final class DNSDOTClientTests: XCTestCase {
 #if canImport(Network)
         try perform(nwDnsClient)
 #endif
+    }
+    
+    func testDoHARecordPostWireframe() async throws {
+//        let base64 = Data(base64Encoded: "q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")!
+//        let requestMessage = try! DNSDecoder.decode(buffer: ByteBuffer(data: base64))
+        
+        // Define the DNS message
+        let header = DNSMessageHeader(id: 542, options: [.standardQuery, .recursionDesired], questionCount: 1, answerCount: 0, authorityCount: 0, additionalRecordCount: 0)
+        let labels = ("www.topvpn.com".split(separator: ".").map(String.init) /*+ [""]*/).map(DNSLabel.init)
+        let questions = [QuestionType.a].map { QuestionSection(labels: labels, type: $0, questionClass: .internet) }
+        let requestMessage = Message(header: header, questions: questions, answers: [], authorities: [], additionalData: [])
+
+        // Build the POST request
+        let url = URL(string: "https://cloudflare-dns.com/dns-query")!  // "https://dns.google/dns-query")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/dns-message", forHTTPHeaderField: "Content-Type")
+        var byteBuffer = DNSEncoder.encodeMessage(requestMessage, allocator: ByteBufferAllocator())
+        request.httpBody = byteBuffer.readData(length: byteBuffer.readableBytes)
+
+        // Send request
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        // Decode response and verify results
+        let statusCode = (response as! HTTPURLResponse).statusCode
+        XCTAssertEqual(statusCode, 200)
+        let responseMessage = try DNSDecoder.decode(buffer: ByteBuffer(data: data))
+        if case .a(let record) = responseMessage.answers.first {
+            print(record.resource.stringAddress)
+        }
+        XCTAssertFalse(data.isEmpty, "Received data should not be empty")
+    }
+    
+    func testDoHARecordGetWireframe() async throws {
+        let base64 = Data(base64Encoded: "q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")!
+        let m = try! DNSDecoder.decode(buffer: ByteBuffer(data: base64))
+        let base64Address = "www.topvpn.com".data(using: .utf8)!.base64urlEncodedString()
+        // Build the Get request
+        let url = URL(string: "https://cloudflare-dns.com/dns-query?dns=\(base64Address)")!  // "https://dns.google/dns-query?dns=\(base64Address)&type=a")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("application/dns-message", forHTTPHeaderField: "Accept")
+
+        // Send request
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        // Decode response and verify results
+        let statusCode = (response as! HTTPURLResponse).statusCode
+        XCTAssertEqual(statusCode, 200)
+        let responseMessage = try DNSDecoder.decode(buffer: ByteBuffer(data: data))
+        if case .a(let record) = responseMessage.answers.first {
+            print(record.resource.stringAddress)
+        }
+        XCTAssertFalse(data.isEmpty, "Received data should not be empty")
     }
     
     func testStringAddress() throws {
@@ -65,7 +139,7 @@ final class DNSDOTClientTests: XCTestCase {
     
     func testAQuery() throws {
         try testClient { dnsClient in
-            let results = try dnsClient.initiateAQuery(host: "google.com", port: 443).wait()
+            let results = try dnsClient.initiateAQuery(host: "gmail.google.com", port: 443).wait()
             XCTAssertGreaterThanOrEqual(results.count, 1, "The returned result should be greater than or equal to 1")
         }
     }
@@ -81,7 +155,7 @@ final class DNSDOTClientTests: XCTestCase {
     // Given a domain name, test that we can resolve it to an IPv4 address
     func testSendQueryA() throws {
         try testClient { dnsClient in
-            let result = try dnsClient.sendQuery(forHost: "google.com", type: .a).wait()
+            let result = try dnsClient.sendQuery(forHost: "gmail.google.com", type: .a).wait()
             XCTAssertGreaterThanOrEqual(result.header.answerCount, 1, "The returned answers should be greater than or equal to 1")
         }
     }
@@ -154,7 +228,7 @@ final class DNSDOTClientTests: XCTestCase {
         _ = try await [result, result2, result3]
         
         do {
-        try await client.channel.close(mode: .all).get()
+            try await client.channel.close(mode: .all).get()
         } catch NIOSSLError.uncleanShutdown {
             // Nobody cares
         }

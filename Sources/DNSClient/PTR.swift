@@ -1,7 +1,7 @@
 import NIO
 
 /// A DNS PTR record. This is used for address to name mapping.
-public struct PTRRecord: DNSResource {
+public struct PTRRecord: DNSResource, Sendable {
     /// A  domain-name which points to some location in the domain name space.
     public let domainName: [DNSLabel]
 

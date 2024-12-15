@@ -1,7 +1,7 @@
 import NIO
 
 /// A DNS SRV record. This is used to specify the location of a service.
-public struct SRVRecord: DNSResource {
+public struct SRVRecord: DNSResource, Sendable {
     /// The priority of this record. Lower values are preferred. This is used to balance load between multiple servers. If two records have the same priority, the weight is used to balance load.
     public let priority: UInt16
 

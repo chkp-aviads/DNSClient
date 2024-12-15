@@ -3,9 +3,9 @@ import Logging
 import Foundation
 
 /// The header of a DNS message.
-public struct DNSMessageHeader {
+public struct DNSMessageHeader : Sendable {
     /// The ID of the message. This is used to match responses to requests.
-    public var id: UInt16
+    public let id: UInt16
     
     /// The flags of the message.
     public let options: MessageOptions
@@ -33,7 +33,7 @@ public struct DNSMessageHeader {
 }
 
 /// A label in a DNS message. This is a single part of a domain name. For example, `google` is a label in `google.com`. Labels are limited to 63 bytes and are not null terminated.
-public struct DNSLabel: ExpressibleByStringLiteral {
+public struct DNSLabel: Sendable, ExpressibleByStringLiteral {
     /// The length of the label. This is the number of bytes in the label.
     public let length: UInt8
     
@@ -57,7 +57,7 @@ public struct DNSLabel: ExpressibleByStringLiteral {
 /// The type of resource record. This is used to determine the format of the record.
 ///
 /// The official standard list of all Resource Record (RR) Types. [IANA](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4)
-public enum DNSResourceType: UInt16 {
+public enum DNSResourceType: UInt16, Sendable {
     /// A request for an IPv4 address
     case a = 1
 
@@ -265,7 +265,7 @@ public enum DNSResourceType: UInt16 {
 public typealias QuestionType = DNSResourceType
 
 /// The class of the resource record. This is used to determine the format of the record. 
-public enum DataClass: UInt16 {
+public enum DataClass: UInt16, Sendable {
     /// The Internet
     case internet = 1
 
@@ -276,7 +276,7 @@ public enum DataClass: UInt16 {
     case hesoid = 4
 }
 
-public struct QuestionSection {
+public struct QuestionSection : Sendable {
     public let labels: [DNSLabel]
     public let type: QuestionType
     public let questionClass: DataClass
@@ -289,7 +289,7 @@ public struct QuestionSection {
 }
 
 /// A DNS message. This is the main type used for interacting with the DNS protocol.
-public enum Record {
+public enum Record : Sendable {
     /// An IPv6 address record. This is used for resolving hostnames to IP addresses.
     case aaaa(ResourceRecord<AAAARecord>)
 
@@ -316,7 +316,7 @@ public enum Record {
 }
 
 /// A text record. This is used for storing arbitrary text.
-public struct TXTRecord: DNSResource {
+public struct TXTRecord: DNSResource, Sendable {
     /// The values of the text record. This is a dictionary of key-value pairs.
     public let values: [String: String]
     public let rawValues: [String]
@@ -358,7 +358,7 @@ public struct TXTRecord: DNSResource {
 }
 
 /// A mail exchange record. This is used for mail servers.
-public struct MXRecord: DNSResource {
+public struct MXRecord: DNSResource, Sendable {
     /// The preference of the mail server. This is used to determine which mail server to use.
     public let preference: Int
 
@@ -377,7 +377,7 @@ public struct MXRecord: DNSResource {
 }
 
 /// A canonical name record. This is used for aliasing hostnames.
-public struct CNAMERecord: DNSResource {
+public struct CNAMERecord: DNSResource, Sendable {
     /// The labels of the alias.
     public let labels: [DNSLabel]
 
@@ -390,7 +390,7 @@ public struct CNAMERecord: DNSResource {
 }
 
 /// An IPv4 address record. This is used for resolving hostnames to IP addresses.
-public struct ARecord: DNSResource {
+public struct ARecord: DNSResource, Sendable {
     /// The address of the record. This is a 32-bit integer.
     public let address: UInt32
 
@@ -409,7 +409,7 @@ public struct ARecord: DNSResource {
 }
 
 /// An IPv6 address record. This is used for resolving hostnames to IP addresses.
-public struct AAAARecord: DNSResource {
+public struct AAAARecord: DNSResource, Sendable {
     /// The address of the record. This is a 128-bit integer.
     public let address: [UInt8]
 
@@ -430,7 +430,7 @@ public struct AAAARecord: DNSResource {
 }
 
 /// A structure representing a DNS resource record. This is used for storing the data of a DNS record.
-public struct ResourceRecord<Resource: DNSResource> {
+public struct ResourceRecord<Resource: DNSResource> : Sendable {
     /// The name of the record.
     public let domainName: [DNSLabel]
 
@@ -448,7 +448,7 @@ public struct ResourceRecord<Resource: DNSResource> {
 }
 
 /// A protocol that can be used to read a DNS resource from a buffer.
-public protocol DNSResource {
+public protocol DNSResource : Sendable {
     static func read(from buffer: inout ByteBuffer, length: Int) -> Self?
 }
 
@@ -498,7 +498,7 @@ extension UInt32 {
     }
 }
 
-struct ZoneAuthority {
+struct ZoneAuthority : Sendable {
     let domainName: [DNSLabel]
     let adminMail: String
     let serial: UInt32
@@ -564,8 +564,8 @@ extension ByteBuffer {
     }
 }
 
-public struct Message {
-    public var header: DNSMessageHeader
+public struct Message : Sendable {
+    public let header: DNSMessageHeader
     public let questions: [QuestionSection]
     public let answers: [Record]
     public let authorities: [Record]
