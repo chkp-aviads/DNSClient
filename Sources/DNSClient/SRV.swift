@@ -13,6 +13,13 @@ public struct SRVRecord: DNSResource, Sendable {
 
     /// The domain name of the service. This can be used to resolve the IP address of the service.
     public let domainName: [DNSLabel]
+    
+    public init(priority: UInt16, weight: UInt16, port: UInt16, domainName: [DNSLabel]) {
+        self.priority = priority
+        self.weight = weight
+        self.port = port
+        self.domainName = domainName
+    }
 
     public static func read(from buffer: inout ByteBuffer, length: Int) -> SRVRecord? {
         guard

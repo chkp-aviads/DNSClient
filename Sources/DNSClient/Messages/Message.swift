@@ -321,7 +321,7 @@ public struct TXTRecord: DNSResource, Sendable {
     public let values: [String: String]
     public let rawValues: [String]
     
-    init(values: [String: String], rawValues: [String]) {
+    public init(values: [String: String], rawValues: [String]) {
         self.values = values
         self.rawValues = rawValues
     }
@@ -364,6 +364,11 @@ public struct MXRecord: DNSResource, Sendable {
 
     /// The labels of the mail server.
     public let labels: [DNSLabel]
+    
+    public init(preference: Int, labels: [DNSLabel]) {
+        self.preference = preference
+        self.labels = labels
+    }
 
     public static func read(from buffer: inout ByteBuffer, length: Int) -> MXRecord? {
         guard let preference = buffer.readInteger(endianness: .big, as: UInt16.self) else { return nil }
@@ -380,6 +385,10 @@ public struct MXRecord: DNSResource, Sendable {
 public struct CNAMERecord: DNSResource, Sendable {
     /// The labels of the alias.
     public let labels: [DNSLabel]
+    
+    public init(labels: [DNSLabel]) {
+        self.labels = labels
+    }
 
     public static func read(from buffer: inout ByteBuffer, length: Int) -> CNAMERecord? {
         guard let labels = buffer.readLabels() else {
@@ -393,6 +402,10 @@ public struct CNAMERecord: DNSResource, Sendable {
 public struct ARecord: DNSResource, Sendable {
     /// The address of the record. This is a 32-bit integer.
     public let address: UInt32
+    
+    public init(address: UInt32) {
+        self.address = address
+    }
 
     /// The address of the record as a string.
     public var stringAddress: String {
@@ -412,6 +425,10 @@ public struct ARecord: DNSResource, Sendable {
 public struct AAAARecord: DNSResource, Sendable {
     /// The address of the record. This is a 128-bit integer.
     public let address: [UInt8]
+    
+    public init(address: [UInt8]) {
+        self.address = address
+    }
 
     /// The address of the record as a string.
     public var stringAddress: String {
@@ -445,6 +462,14 @@ public struct ResourceRecord<Resource: DNSResource> : Sendable {
     
     /// The resource of the record. This is the data of the record.
     public var resource: Resource
+    
+    public init(domainName: [DNSLabel], dataType: UInt16, dataClass: UInt16, ttl: UInt32, resource: Resource) {
+        self.domainName = domainName
+        self.dataType = dataType
+        self.dataClass = dataClass
+        self.ttl = ttl
+        self.resource = resource
+    }
 }
 
 /// A protocol that can be used to read a DNS resource from a buffer.
