@@ -355,6 +355,10 @@ public struct TXTRecord: DNSResource, Sendable {
         
         return TXTRecord(values: components, rawValues: rawValues)
     }
+    
+    public func write(to buffer: inout ByteBuffer) throws {
+        throw ProtocolError()
+    }
 }
 
 /// A mail exchange record. This is used for mail servers.
@@ -379,6 +383,10 @@ public struct MXRecord: DNSResource, Sendable {
 
         return MXRecord(preference: Int(preference), labels: labels)
     }
+    
+    public func write(to buffer: inout ByteBuffer) throws {
+        throw ProtocolError()
+    }
 }
 
 /// A canonical name record. This is used for aliasing hostnames.
@@ -395,6 +403,10 @@ public struct CNAMERecord: DNSResource, Sendable {
             return nil
         }
         return CNAMERecord(labels: labels)
+    }
+    
+    public func write(to buffer: inout ByteBuffer) throws {
+        throw ProtocolError()
     }
 }
 
@@ -418,6 +430,12 @@ public struct ARecord: DNSResource, Sendable {
     public static func read(from buffer: inout ByteBuffer, length: Int) -> ARecord? {
         guard let address = buffer.readInteger(endianness: .big, as: UInt32.self) else { return nil }
         return ARecord(address: address)
+    }
+    
+    public func write(to buffer: inout ByteBuffer) throws {
+        // Write Int32 size to out buffer
+        buffer.writeInteger(4 /*Int32 size */, endianness: .big, as: UInt16.self)   // data length
+        buffer.writeInteger(self.address, endianness: .big)
     }
 }
 
@@ -443,6 +461,11 @@ public struct AAAARecord: DNSResource, Sendable {
     public static func read(from buffer: inout ByteBuffer, length: Int) -> AAAARecord? {
         guard let address = buffer.readBytes(length: 16) else { return nil }
         return AAAARecord(address: address)
+    }
+    
+    public func write(to out: inout ByteBuffer) throws {
+        out.writeInteger(UInt16(self.address.count) , endianness: .big, as: UInt16.self) // data length
+        out.writeBytes(self.address)
     }
 }
 
@@ -475,12 +498,18 @@ public struct ResourceRecord<Resource: DNSResource> : Sendable {
 /// A protocol that can be used to read a DNS resource from a buffer.
 public protocol DNSResource : Sendable {
     static func read(from buffer: inout ByteBuffer, length: Int) -> Self?
+    func write(to buffer: inout ByteBuffer) throws
 }
 
 /// An extension to `ByteBuffer` that adds a method for reading a DNS resource.
 extension ByteBuffer: DNSResource {
     public static func read(from buffer: inout ByteBuffer, length: Int) -> ByteBuffer? {
         return buffer.readSlice(length: length)
+    }
+    
+    public func write(to buffer: inout ByteBuffer) throws {
+        var data = self
+        buffer.writeBuffer(&data)
     }
 }
 
@@ -553,9 +582,13 @@ extension ByteBuffer {
         var written = 0
         var labels = labels
         while !labels.isEmpty {
-            let label = labels.removeFirst()
             // use combined labels as a key for a position in the packet
             let key = labels.string
+            let label = labels.removeFirst()
+            if label.length == 0 {
+                continue   // Empty labels should be skipped
+            }
+            
             // if position exists output position or'ed with 0xc000 and return
             if let labelIndex = labelIndices[key] {
                 written += writeInteger(labelIndex | 0xc000)

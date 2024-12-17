@@ -33,4 +33,8 @@ public struct SRVRecord: DNSResource, Sendable {
 
         return SRVRecord(priority: priority, weight: weight, port: port, domainName: domainName)
     }
+    
+    public func write(to buffer: inout NIOCore.ByteBuffer) {
+        assertionFailure("SRV records cannot be written." )
+    }
 }

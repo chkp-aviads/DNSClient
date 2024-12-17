@@ -75,7 +75,7 @@ final class DNSDOTClientTests: XCTestCase {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/dns-message", forHTTPHeaderField: "Content-Type")
-        var byteBuffer = DNSEncoder.encodeMessage(requestMessage, allocator: ByteBufferAllocator())
+        var byteBuffer = try DNSEncoder.encodeMessage(requestMessage, allocator: ByteBufferAllocator())
         request.httpBody = byteBuffer.readData(length: byteBuffer.readableBytes)
 
         // Send request

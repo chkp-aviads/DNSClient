@@ -39,6 +39,66 @@ final class DNSUDPClientTests: XCTestCase {
         #endif
     }
     
+    func testEncodeDecodeARecordAnswer() throws {
+        let labels = [DNSLabel(stringLiteral: "google"),
+                     DNSLabel(stringLiteral: "com"),
+                    DNSLabel(stringLiteral: "")]
+        print(labels.string)
+        let ipAddress = "192.168.2.1"
+        let address = try SocketAddress(ipAddress: ipAddress, port: 53)
+        let aRecord : ARecord
+        if case .v4(let ip) = address {
+            aRecord = ARecord(address: ip.address.sin_addr.s_addr.bigEndian)
+        } else {
+            aRecord = ARecord(address: 0)
+        }
+        let fakeAnswer = Record.a(ResourceRecord<ARecord>(domainName: labels, dataType: DNSResourceType.a.rawValue, dataClass: DataClass.internet.rawValue, ttl: 30, resource: aRecord))
+        let header = DNSMessageHeader(id: 1234, options: .answer, questionCount: 1, answerCount: 1, authorityCount: 0, additionalRecordCount: 0)
+        let question = QuestionSection(labels: labels, type: .a, questionClass: .internet)
+        let fakeResponse = Message(header: header, questions: [question], answers: [fakeAnswer], authorities: [], additionalData: [])
+        let fakeResponsePayload = try DNSEncoder.encodeMessage(fakeResponse, allocator: ByteBufferAllocator())
+        let decoded = try DNSDecoder.decode(buffer: fakeResponsePayload)
+        XCTAssertEqual(decoded.questions[0].labels.string, fakeResponse.questions[0].labels.string)
+        guard case .a(let resourceRecord) = decoded.answers[0] else {
+            XCTFail("Answer should be ARecord")
+            return
+        }
+        XCTAssertEqual(resourceRecord.resource.stringAddress, ipAddress)
+        XCTAssertEqual(decoded.header.answerCount, fakeResponse.header.answerCount)
+    }
+    
+    func testEncodeDecodeAAAAARecordAnswer() throws {
+        let labels = [DNSLabel(stringLiteral: "google"),
+                     DNSLabel(stringLiteral: "com"),
+                    DNSLabel(stringLiteral: "")]
+        print(labels.string)
+        let ipAddress = "fc00:0000:0000:0000:0000:0000:0000:0001"
+        let address = try SocketAddress(ipAddress: ipAddress, port: 53)
+        let aaaaRecord : AAAARecord
+        if case .v6(let ip) = address {
+            var addr = ip.address.sin6_addr
+            let ipv6Data = withUnsafeBytes(of: &addr) { buffer in
+                return Array(buffer)
+            }
+            aaaaRecord = AAAARecord(address: ipv6Data)
+        } else {
+            aaaaRecord = AAAARecord(address: [])
+        }
+        let fakeAnswer = Record.aaaa(ResourceRecord<AAAARecord>(domainName: labels, dataType: DNSResourceType.aaaa.rawValue, dataClass: DataClass.internet.rawValue, ttl: 30, resource: aaaaRecord))
+        let header = DNSMessageHeader(id: 1234, options: .answer, questionCount: 1, answerCount: 1, authorityCount: 0, additionalRecordCount: 0)
+        let question = QuestionSection(labels: labels, type: .a, questionClass: .internet)
+        let fakeResponse = Message(header: header, questions: [question], answers: [fakeAnswer], authorities: [], additionalData: [])
+        let fakeResponsePayload = try DNSEncoder.encodeMessage(fakeResponse, allocator: ByteBufferAllocator())
+        let decoded = try DNSDecoder.decode(buffer: fakeResponsePayload)
+        XCTAssertEqual(decoded.questions[0].labels.string, fakeResponse.questions[0].labels.string)
+        guard case .aaaa(let resourceRecord) = decoded.answers[0] else {
+            XCTFail("Answer should be AAAARecord")
+            return
+        }
+        XCTAssertEqual(resourceRecord.resource.stringAddress, ipAddress)
+        XCTAssertEqual(decoded.header.answerCount, fakeResponse.header.answerCount)
+    }
+    
     func testStringAddress() throws {
         var buffer = ByteBuffer()
         buffer.writeInteger(0x7F000001 as UInt32)

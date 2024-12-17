@@ -53,12 +53,15 @@ public final class DNSEncoder: ChannelOutboundHandler {
     
     public func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let message = unwrapOutboundIn(data)
-        let data = DNSEncoder.encodeMessage(message, allocator: context.channel.allocator)
-
-        context.write(wrapOutboundOut(data), promise: promise)
+        do {
+            let data = try DNSEncoder.encodeMessage(message, allocator: context.channel.allocator)
+            context.write(wrapOutboundOut(data), promise: promise)
+        } catch {
+            promise?.fail(error)
+        }
     }
     
-    public static func encodeMessage(_ message: Message, allocator: ByteBufferAllocator) -> ByteBuffer {
+    public static func encodeMessage(_ message: Message, allocator: ByteBufferAllocator) throws -> ByteBuffer {
         var out = allocator.buffer(capacity: 512)
 
         let header = message.header
@@ -72,7 +75,44 @@ public final class DNSEncoder: ChannelOutboundHandler {
             out.writeInteger(question.type.rawValue, endianness: .big)
             out.writeInteger(question.questionClass.rawValue, endianness: .big)
         }
+        
+        for answer in message.answers {
+            try answer.write(to: &out)
+        }
 
         return out
+    }
+}
+
+extension Record {
+    func write(to buffer: inout ByteBuffer) throws {
+        switch self {
+        case .aaaa(let resourceRecord):
+            try resourceRecord.write(to: &buffer)
+        case .a(let resourceRecord):
+            try resourceRecord.write(to: &buffer)
+        case .txt(let resourceRecord):
+            try resourceRecord.write(to: &buffer)
+        case .cname(let resourceRecord):
+            try resourceRecord.write(to: &buffer)
+        case .srv(let resourceRecord):
+            try resourceRecord.write(to: &buffer)
+        case .mx(let resourceRecord):
+            try resourceRecord.write(to: &buffer)
+        case .ptr(let resourceRecord):
+            try resourceRecord.write(to: &buffer)
+        case .other(let resourceRecord):
+            try resourceRecord.write(to: &buffer)
+        }
+    }
+}
+
+extension ResourceRecord {
+    func write(to out: inout ByteBuffer) throws {
+        out.writeLabels(self.domainName)
+        out.writeInteger(self.dataType, endianness: .big)
+        out.writeInteger(self.dataClass, endianness: .big)
+        out.writeInteger(self.ttl, endianness: .big)
+        try self.resource.write(to: &out)
     }
 }

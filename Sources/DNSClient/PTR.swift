@@ -15,6 +15,10 @@ public struct PTRRecord: DNSResource, Sendable {
     public init(domainName: [DNSLabel]) {
         self.domainName = domainName
     }
+    
+    public func write(to buffer: inout NIOCore.ByteBuffer) {
+        assertionFailure("PTR records cannot be written." )
+    }
 }
 
 extension DNSClient {
