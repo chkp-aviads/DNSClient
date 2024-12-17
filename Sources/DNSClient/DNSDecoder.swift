@@ -12,36 +12,59 @@ final class EnvelopeInboundChannel: ChannelInboundHandler {
     }
 }
 
-final public class DNSDecoder: ChannelInboundHandler {
+public final class DNSDecoder: ChannelInboundHandler {
     let group: EventLoopGroup
     var messageCache = [UInt16: SentQuery]()
     var clients = [ObjectIdentifier: DNSClient]()
     weak var mainClient: DNSClient?
 
-    init(group: EventLoopGroup) {
+    public init(group: EventLoopGroup) {
         self.group = group
     }
 
     public typealias InboundIn = ByteBuffer
     public typealias OutboundOut = Never
     
-    public static func decode(buffer: ByteBuffer) throws -> Message {
+    public func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        let message: Message
+
+        do {
+            message = try Self.parse(unwrapInboundIn(data))
+        } catch {
+            context.fireErrorCaught(error)
+            return
+        }
+
+        if !message.header.options.contains(.answer) {
+            return
+        }
+
+        guard let query = messageCache[message.header.id] else {
+            return
+        }
+
+        query.promise.succeed(message)
+        messageCache[message.header.id] = nil
+    }
+
+    public static func parse(_ buffer: ByteBuffer) throws -> Message {
         var buffer = buffer
+
         guard let header = buffer.readHeader() else {
             throw ProtocolError()
         }
-        
+
         var questions = [QuestionSection]()
         
         for _ in 0..<header.questionCount {
             guard let question = buffer.readQuestion() else {
-                throw MessageError(header: header, innerError: ProtocolError())
+                throw ProtocolError()
             }
             
             questions.append(question)
         }
         
-        func resourceRecords(count: UInt16, header: DNSMessageHeader) throws -> [Record] {
+        func resourceRecords(count: UInt16) throws -> [Record] {
             var records = [Record]()
             
             for _ in 0..<count {
@@ -54,11 +77,11 @@ final public class DNSDecoder: ChannelInboundHandler {
             
             return records
         }
-        
-        let answers = try resourceRecords(count: header.answerCount, header: header)
-        let authorities = try resourceRecords(count: header.authorityCount, header: header)
-        let additionalData = try resourceRecords(count: header.additionalRecordCount, header: header)
-        
+
+        let answers = try resourceRecords(count: header.answerCount)
+        let authorities = try resourceRecords(count: header.authorityCount)
+        let additionalData = try resourceRecords(count: header.additionalRecordCount)
+
         return Message(
             header: header,
             questions: questions,
@@ -66,33 +89,6 @@ final public class DNSDecoder: ChannelInboundHandler {
             authorities: authorities,
             additionalData: additionalData
         )
-    }
-    
-    public func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        let envelope = self.unwrapInboundIn(data)
-        
-        do {
-            let message = try DNSDecoder.decode(buffer: envelope)
-            
-            if !message.header.options.contains(.answer) {
-                return
-            }
-
-            guard let query = messageCache[message.header.id] else {
-                return
-            }
-
-            query.promise.succeed(message)
-            messageCache[message.header.id] = nil
-        } catch let error {
-            if let messageError = error as? MessageError {
-                messageCache[messageError.header.id]?.promise.fail(messageError.innerError)
-                messageCache[messageError.header.id] = nil
-                context.fireErrorCaught(messageError.innerError)
-            } else {
-                context.fireErrorCaught(error)
-            }
-        }
     }
 
     public func errorCaught(context ctx: ChannelHandlerContext, error: Error) {

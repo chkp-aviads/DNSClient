@@ -56,8 +56,9 @@ final class DNSUDPClientTests: XCTestCase {
         let header = DNSMessageHeader(id: 1234, options: .answer, questionCount: 1, answerCount: 1, authorityCount: 0, additionalRecordCount: 0)
         let question = QuestionSection(labels: labels, type: .a, questionClass: .internet)
         let fakeResponse = Message(header: header, questions: [question], answers: [fakeAnswer], authorities: [], additionalData: [])
-        let fakeResponsePayload = try DNSEncoder.encodeMessage(fakeResponse, allocator: ByteBufferAllocator())
-        let decoded = try DNSDecoder.decode(buffer: fakeResponsePayload)
+        var labelIndices = [String: UInt16]()
+        let fakeResponsePayload = try DNSEncoder.encodeMessage(fakeResponse, allocator: ByteBufferAllocator(), labelIndices: &labelIndices)
+        let decoded = try DNSDecoder.parse(fakeResponsePayload)
         XCTAssertEqual(decoded.questions[0].labels.string, fakeResponse.questions[0].labels.string)
         guard case .a(let resourceRecord) = decoded.answers[0] else {
             XCTFail("Answer should be ARecord")
@@ -88,8 +89,9 @@ final class DNSUDPClientTests: XCTestCase {
         let header = DNSMessageHeader(id: 1234, options: .answer, questionCount: 1, answerCount: 1, authorityCount: 0, additionalRecordCount: 0)
         let question = QuestionSection(labels: labels, type: .a, questionClass: .internet)
         let fakeResponse = Message(header: header, questions: [question], answers: [fakeAnswer], authorities: [], additionalData: [])
-        let fakeResponsePayload = try DNSEncoder.encodeMessage(fakeResponse, allocator: ByteBufferAllocator())
-        let decoded = try DNSDecoder.decode(buffer: fakeResponsePayload)
+        var labelIndices = [String: UInt16]()
+        let fakeResponsePayload = try DNSEncoder.encodeMessage(fakeResponse, allocator: ByteBufferAllocator(), labelIndices: &labelIndices)
+        let decoded = try DNSDecoder.parse(fakeResponsePayload)
         XCTAssertEqual(decoded.questions[0].labels.string, fakeResponse.questions[0].labels.string)
         guard case .aaaa(let resourceRecord) = decoded.answers[0] else {
             XCTFail("Answer should be AAAARecord")

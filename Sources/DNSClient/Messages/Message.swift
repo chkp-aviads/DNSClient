@@ -21,8 +21,15 @@ public struct DNSMessageHeader : Sendable {
 
     /// The number of additional records in the message.
     public let additionalRecordCount: UInt16
-    
-    public init(id: UInt16, options: MessageOptions, questionCount: UInt16, answerCount: UInt16, authorityCount: UInt16, additionalRecordCount: UInt16) {
+
+    public init(
+        id: UInt16,
+        options: MessageOptions,
+        questionCount: UInt16,
+        answerCount: UInt16,
+        authorityCount: UInt16,
+        additionalRecordCount: UInt16
+    ) {
         self.id = id
         self.options = options
         self.questionCount = questionCount
@@ -355,9 +362,9 @@ public struct TXTRecord: DNSResource, Sendable {
         
         return TXTRecord(values: components, rawValues: rawValues)
     }
-    
-    public func write(to buffer: inout ByteBuffer) throws {
-        throw ProtocolError()
+
+    public func write(into buffer: inout ByteBuffer, labelIndices: inout [String: UInt16]) -> Int {
+        fatalError()
     }
 }
 
@@ -383,9 +390,10 @@ public struct MXRecord: DNSResource, Sendable {
 
         return MXRecord(preference: Int(preference), labels: labels)
     }
-    
-    public func write(to buffer: inout ByteBuffer) throws {
-        throw ProtocolError()
+
+    public func write(into buffer: inout ByteBuffer, labelIndices: inout [String: UInt16]) -> Int {
+        let length = buffer.writeInteger(preference)
+        return length + buffer.writeCompressedLabels(labels, labelIndices: &labelIndices)
     }
 }
 
@@ -404,9 +412,9 @@ public struct CNAMERecord: DNSResource, Sendable {
         }
         return CNAMERecord(labels: labels)
     }
-    
-    public func write(to buffer: inout ByteBuffer) throws {
-        throw ProtocolError()
+
+    public func write(into buffer: inout ByteBuffer, labelIndices: inout [String: UInt16]) -> Int {
+        buffer.writeCompressedLabels(labels, labelIndices: &labelIndices)
     }
 }
 
@@ -414,7 +422,7 @@ public struct CNAMERecord: DNSResource, Sendable {
 public struct ARecord: DNSResource, Sendable {
     /// The address of the record. This is a 32-bit integer.
     public let address: UInt32
-    
+
     public init(address: UInt32) {
         self.address = address
     }
@@ -431,11 +439,9 @@ public struct ARecord: DNSResource, Sendable {
         guard let address = buffer.readInteger(endianness: .big, as: UInt32.self) else { return nil }
         return ARecord(address: address)
     }
-    
-    public func write(to buffer: inout ByteBuffer) throws {
-        // Write Int32 size to out buffer
-        buffer.writeInteger(4 /*Int32 size */, endianness: .big, as: UInt16.self)   // data length
-        buffer.writeInteger(self.address, endianness: .big)
+
+    public func write(into buffer: inout ByteBuffer, labelIndices: inout [String: UInt16]) -> Int {
+        buffer.writeInteger(address)
     }
 }
 
@@ -462,10 +468,9 @@ public struct AAAARecord: DNSResource, Sendable {
         guard let address = buffer.readBytes(length: 16) else { return nil }
         return AAAARecord(address: address)
     }
-    
-    public func write(to out: inout ByteBuffer) throws {
-        out.writeInteger(UInt16(self.address.count) , endianness: .big, as: UInt16.self) // data length
-        out.writeBytes(self.address)
+
+    public func write(into buffer: inout ByteBuffer, labelIndices: inout [String: UInt16]) -> Int {
+        buffer.writeBytes(address)
     }
 }
 
@@ -485,8 +490,14 @@ public struct ResourceRecord<Resource: DNSResource> : Sendable {
     
     /// The resource of the record. This is the data of the record.
     public var resource: Resource
-    
-    public init(domainName: [DNSLabel], dataType: UInt16, dataClass: UInt16, ttl: UInt32, resource: Resource) {
+
+    public init(
+        domainName: [DNSLabel],
+        dataType: UInt16,
+        dataClass: UInt16,
+        ttl: UInt32,
+        resource: Resource
+    ) {
         self.domainName = domainName
         self.dataType = dataType
         self.dataClass = dataClass
@@ -498,7 +509,7 @@ public struct ResourceRecord<Resource: DNSResource> : Sendable {
 /// A protocol that can be used to read a DNS resource from a buffer.
 public protocol DNSResource : Sendable {
     static func read(from buffer: inout ByteBuffer, length: Int) -> Self?
-    func write(to buffer: inout ByteBuffer) throws
+    func write(into buffer: inout ByteBuffer, labelIndices: inout [String: UInt16]) -> Int
 }
 
 /// An extension to `ByteBuffer` that adds a method for reading a DNS resource.
@@ -506,10 +517,9 @@ extension ByteBuffer: DNSResource {
     public static func read(from buffer: inout ByteBuffer, length: Int) -> ByteBuffer? {
         return buffer.readSlice(length: length)
     }
-    
-    public func write(to buffer: inout ByteBuffer) throws {
-        var data = self
-        buffer.writeBuffer(&data)
+
+    public func write(into buffer: inout ByteBuffer, labelIndices: inout [String: UInt16]) -> Int {
+        buffer.writeImmutableBuffer(self)
     }
 }
 
@@ -576,7 +586,7 @@ extension Sequence where Element == DNSLabel {
 }
 
 extension ByteBuffer {
-    /// Either write label index or list of labels
+    /// Either write label index or list of labelsf
     @discardableResult
     mutating func writeCompressedLabels(_ labels: [DNSLabel], labelIndices: inout [String: UInt16]) -> Int {
         var written = 0
@@ -628,69 +638,18 @@ public struct Message : Sendable {
     public let answers: [Record]
     public let authorities: [Record]
     public let additionalData: [Record]
-    
-    public init(header: DNSMessageHeader, questions: [QuestionSection], answers: [Record], authorities: [Record], additionalData: [Record]) {
+
+    public init(
+        header: DNSMessageHeader,
+        questions: [QuestionSection],
+        answers: [Record],
+        authorities: [Record],
+        additionalData: [Record]
+    ) {
         self.header = header
         self.questions = questions
         self.answers = answers
         self.authorities = authorities
         self.additionalData = additionalData
-    }
-}
-
-public extension Message {
-    init?(logger: Logger, buffer: ByteBuffer) {
-        var buffer = buffer
-        guard let header = buffer.readHeader() else {
-            return nil
-        }
-
-        var questions = [QuestionSection]()
-
-        for _ in 0..<header.questionCount {
-            guard let question = buffer.readQuestion() else {
-                return nil
-            }
-
-            questions.append(question)
-        }
-
-        func resourceRecords(count: UInt16) throws -> [Record] {
-            var records = [Record]()
-
-            for _ in 0..<count {
-                guard let record = buffer.readRecord() else {
-                    throw ProtocolError()
-                }
-
-                records.append(record)
-            }
-
-            return records
-        }
-
-        do {
-            let answers = try resourceRecords(count: header.answerCount)
-            let authorities = try resourceRecords(count: header.authorityCount)
-            let additionalData = try resourceRecords(count: header.additionalRecordCount)
-            
-            self = Message(
-                header: header,
-                questions: questions,
-                answers: answers,
-                authorities: authorities,
-                additionalData: additionalData
-            )
-        } catch let error {
-            logger.error("Failed to decode dns message: \(error)")
-            return nil
-        }
-    }
-    
-    func noDataResponse() -> Message {
-        // Returns an asnwer response for the given message questions with no answers
-        // This is used to represent that the DNS does not know the answer to the questions
-        let responseHeader = DNSMessageHeader(id: self.header.id, options: .answer, questionCount: self.header.questionCount, answerCount: 0, authorityCount: 0, additionalRecordCount: 0)
-        return Message(header: responseHeader, questions: self.questions, answers: [], authorities: [], additionalData: [])
     }
 }

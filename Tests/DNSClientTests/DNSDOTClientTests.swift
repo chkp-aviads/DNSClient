@@ -15,7 +15,7 @@ import NIOTransportServices
 #endif
 
 public extension Data {
-    public init?(base64urlEncoded input: String) {
+    init?(base64urlEncoded input: String) {
         var base64 = input
         base64 = base64.replacingOccurrences(of: "-", with: "+")
         base64 = base64.replacingOccurrences(of: "_", with: "/")
@@ -25,7 +25,7 @@ public extension Data {
         self.init(base64Encoded: base64)
     }
 
-    public func base64urlEncodedString() -> String {
+    func base64urlEncodedString() -> String {
         var result = self.base64EncodedString()
         result = result.replacingOccurrences(of: "+", with: "-")
         result = result.replacingOccurrences(of: "/", with: "_")
@@ -75,7 +75,8 @@ final class DNSDOTClientTests: XCTestCase {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/dns-message", forHTTPHeaderField: "Content-Type")
-        var byteBuffer = try DNSEncoder.encodeMessage(requestMessage, allocator: ByteBufferAllocator())
+        var labelIndices = [String: UInt16]()
+        var byteBuffer = try DNSEncoder.encodeMessage(requestMessage, allocator: ByteBufferAllocator(), labelIndices: &labelIndices)
         request.httpBody = byteBuffer.readData(length: byteBuffer.readableBytes)
 
         // Send request
@@ -84,7 +85,7 @@ final class DNSDOTClientTests: XCTestCase {
         // Decode response and verify results
         let statusCode = (response as! HTTPURLResponse).statusCode
         XCTAssertEqual(statusCode, 200)
-        let responseMessage = try DNSDecoder.decode(buffer: ByteBuffer(data: data))
+        let responseMessage = try DNSDecoder.parse(ByteBuffer(data: data))
         if case .a(let record) = responseMessage.answers.first {
             print(record.resource.stringAddress)
         }
@@ -93,7 +94,7 @@ final class DNSDOTClientTests: XCTestCase {
     
     func testDoHARecordGetWireframe() async throws {
         let base64 = Data(base64Encoded: "q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")!
-        let m = try! DNSDecoder.decode(buffer: ByteBuffer(data: base64))
+        _ = try! DNSDecoder.parse(ByteBuffer(data: base64))
         let base64Address = "www.topvpn.com".data(using: .utf8)!.base64urlEncodedString()
         // Build the Get request
         let url = URL(string: "https://cloudflare-dns.com/dns-query?dns=\(base64Address)")!  // "https://dns.google/dns-query?dns=\(base64Address)&type=a")!
@@ -107,7 +108,7 @@ final class DNSDOTClientTests: XCTestCase {
         // Decode response and verify results
         let statusCode = (response as! HTTPURLResponse).statusCode
         XCTAssertEqual(statusCode, 200)
-        let responseMessage = try DNSDecoder.decode(buffer: ByteBuffer(data: data))
+        let responseMessage = try DNSDecoder.parse(ByteBuffer(data: data))
         if case .a(let record) = responseMessage.answers.first {
             print(record.resource.stringAddress)
         }

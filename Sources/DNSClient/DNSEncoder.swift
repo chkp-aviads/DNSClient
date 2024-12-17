@@ -50,24 +50,33 @@ final class UInt16FrameEncoder: MessageToByteEncoder {
 public final class DNSEncoder: ChannelOutboundHandler {
     public typealias OutboundIn = Message
     public typealias OutboundOut = ByteBuffer
-    
+
     public func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let message = unwrapOutboundIn(data)
         do {
-            let data = try DNSEncoder.encodeMessage(message, allocator: context.channel.allocator)
+            var labelIndices = [String: UInt16]()
+            let data = try DNSEncoder.encodeMessage(
+                message,
+                allocator: context.channel.allocator,
+                labelIndices: &labelIndices
+            )
+
             context.write(wrapOutboundOut(data), promise: promise)
         } catch {
-            promise?.fail(error)
+            context.fireErrorCaught(error)
         }
     }
     
-    public static func encodeMessage(_ message: Message, allocator: ByteBufferAllocator) throws -> ByteBuffer {
+    public static func encodeMessage(
+        _ message: Message,
+        allocator: ByteBufferAllocator,
+        labelIndices: inout [String: UInt16]
+    ) throws -> ByteBuffer {
         var out = allocator.buffer(capacity: 512)
 
         let header = message.header
 
         out.write(header)
-        var labelIndices = [String : UInt16]()
 
         for question in message.questions {
             out.writeCompressedLabels(question.labels, labelIndices: &labelIndices)
@@ -75,44 +84,19 @@ public final class DNSEncoder: ChannelOutboundHandler {
             out.writeInteger(question.type.rawValue, endianness: .big)
             out.writeInteger(question.questionClass.rawValue, endianness: .big)
         }
-        
+
         for answer in message.answers {
-            try answer.write(to: &out)
+            try out.writeAnyRecord(answer, labelIndices: &labelIndices)
+        }
+
+        for authority in message.authorities {
+            try out.writeAnyRecord(authority, labelIndices: &labelIndices)
+        }
+
+ 	for additionalData in message.additionalData {
+            try out.writeAnyRecord(additionalData, labelIndices: &labelIndices)
         }
 
         return out
-    }
-}
-
-extension Record {
-    func write(to buffer: inout ByteBuffer) throws {
-        switch self {
-        case .aaaa(let resourceRecord):
-            try resourceRecord.write(to: &buffer)
-        case .a(let resourceRecord):
-            try resourceRecord.write(to: &buffer)
-        case .txt(let resourceRecord):
-            try resourceRecord.write(to: &buffer)
-        case .cname(let resourceRecord):
-            try resourceRecord.write(to: &buffer)
-        case .srv(let resourceRecord):
-            try resourceRecord.write(to: &buffer)
-        case .mx(let resourceRecord):
-            try resourceRecord.write(to: &buffer)
-        case .ptr(let resourceRecord):
-            try resourceRecord.write(to: &buffer)
-        case .other(let resourceRecord):
-            try resourceRecord.write(to: &buffer)
-        }
-    }
-}
-
-extension ResourceRecord {
-    func write(to out: inout ByteBuffer) throws {
-        out.writeLabels(self.domainName)
-        out.writeInteger(self.dataType, endianness: .big)
-        out.writeInteger(self.dataClass, endianness: .big)
-        out.writeInteger(self.ttl, endianness: .big)
-        try self.resource.write(to: &out)
     }
 }

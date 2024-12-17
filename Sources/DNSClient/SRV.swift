@@ -33,8 +33,11 @@ public struct SRVRecord: DNSResource, Sendable {
 
         return SRVRecord(priority: priority, weight: weight, port: port, domainName: domainName)
     }
-    
-    public func write(to buffer: inout NIOCore.ByteBuffer) {
-        assertionFailure("SRV records cannot be written." )
+
+    public func write(into buffer: inout ByteBuffer, labelIndices: inout [String: UInt16]) -> Int {
+        var length = buffer.writeInteger(priority)
+        length += buffer.writeInteger(weight)
+        length += buffer.writeInteger(port)
+        return length + buffer.writeCompressedLabels(domainName, labelIndices: &labelIndices)
     }
 }
