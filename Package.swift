@@ -19,10 +19,10 @@ let package = Package(
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/chkp-aviads/swift-nio.git", branch: "main"),
-        .package(url: "https://github.com/chkp-aviads/swift-nio-transport-services.git", branch: "main"),
+        .package(url: "https://github.com/chkp-aviads/swift-nio.git", from: "2.82.0"),
+        .package(url: "https://github.com/chkp-aviads/swift-nio-transport-services.git", from: "1.23.2"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
-        .package(url: "https://github.com/chkp-aviads/swift-nio-ssl.git", branch: "main"),
+        .package(url: "https://github.com/chkp-aviads/swift-nio-ssl.git", from: "2.30.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
