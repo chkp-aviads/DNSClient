@@ -172,21 +172,23 @@ extension DNSClient {
         
         let bootstrap = ClientBootstrap(group: group)
             .channelInitializer { channel in
-                if let sslContext {
-                    return channel.pipeline.addHandlers(
-                        try! NIOSSLClientHandler(context: sslContext, serverHostname: nil),
-                        ByteToMessageHandler(UInt16FrameDecoder()),
-                        MessageToByteHandler(UInt16FrameEncoder()),
-                        dnsDecoder,
-                        DNSEncoder()
-                    )
-                } else {
-                    return channel.pipeline.addHandlers(
-                        ByteToMessageHandler(UInt16FrameDecoder()),
-                        MessageToByteHandler(UInt16FrameEncoder()),
-                        dnsDecoder,
-                        DNSEncoder()
-                    )
+                return channel.eventLoop.submit {
+                    if let sslContext {
+                        return try channel.pipeline.syncOperations.addHandlers(
+                            try! NIOSSLClientHandler(context: sslContext, serverHostname: nil),
+                            ByteToMessageHandler(UInt16FrameDecoder()),
+                            MessageToByteHandler(UInt16FrameEncoder()),
+                            dnsDecoder,
+                            DNSEncoder()
+                        )
+                    } else {
+                        return try channel.pipeline.syncOperations.addHandlers(
+                            ByteToMessageHandler(UInt16FrameDecoder()),
+                            MessageToByteHandler(UInt16FrameEncoder()),
+                            dnsDecoder,
+                            DNSEncoder()
+                        )
+                    }
                 }
             }
         
@@ -311,12 +313,14 @@ extension DNSClient {
             _ = tsBootstrap.tlsOptions(tls)
         }
         return tsBootstrap .channelInitializer { channel in
-            return channel.pipeline.addHandlers(
-                ByteToMessageHandler(UInt16FrameDecoder()),
-                MessageToByteHandler(UInt16FrameEncoder()),
-                dnsDecoder,
-                DNSEncoder()
-            )
+            return channel.eventLoop.submit {
+                return try channel.pipeline.syncOperations.addHandlers(
+                    ByteToMessageHandler(UInt16FrameDecoder()),
+                    MessageToByteHandler(UInt16FrameEncoder()),
+                    dnsDecoder,
+                    DNSEncoder()
+                )
+            }
         }
         .connect(to: address)
         .map { channel -> DNSClient in

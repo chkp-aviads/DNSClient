@@ -33,8 +33,8 @@
         "repositoryURL": "https://github.com/chkp-aviads/swift-nio.git",
         "state": {
           "branch": null,
-          "revision": "1d0b07fbcfc81d882a7b09dbbd6f537eb647eb6d",
-          "version": "2.82.0"
+          "revision": "12e5b17ead80d28988733a3732da3c74331136a5",
+          "version": "2.83.0"
         }
       },
       {
@@ -42,8 +42,8 @@
         "repositoryURL": "https://github.com/chkp-aviads/swift-nio-ssl.git",
         "state": {
           "branch": null,
-          "revision": "643ff76f97c435716fb02e3171695f0591cf73c4",
-          "version": "2.30.0"
+          "revision": "8fd466bfbc4e94cd32b28e6cd706dd125fe432f9",
+          "version": "2.31.0"
         }
       },
       {
@@ -51,8 +51,8 @@
         "repositoryURL": "https://github.com/chkp-aviads/swift-nio-transport-services.git",
         "state": {
           "branch": null,
-          "revision": "4b1b5548094ef0e7094abe746e6a2638b6ff8f73",
-          "version": "1.23.2"
+          "revision": "c01872f781d208feb2510c5621795c343084ea56",
+          "version": "1.24.0"
         }
       },
       {

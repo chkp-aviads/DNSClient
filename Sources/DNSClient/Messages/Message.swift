@@ -40,7 +40,7 @@ public struct DNSMessageHeader : Sendable {
 }
 
 /// A label in a DNS message. This is a single part of a domain name. For example, `google` is a label in `google.com`. Labels are limited to 63 bytes and are not null terminated.
-public struct DNSLabel: Sendable, ExpressibleByStringLiteral {
+public struct DNSLabel: ExpressibleByStringLiteral, Sendable {
     /// The length of the label. This is the number of bytes in the label.
     public let length: UInt8
     
@@ -475,7 +475,7 @@ public struct AAAARecord: DNSResource, Sendable {
 }
 
 /// A structure representing a DNS resource record. This is used for storing the data of a DNS record.
-public struct ResourceRecord<Resource: DNSResource> : Sendable {
+public struct ResourceRecord<Resource: DNSResource>: Sendable {
     /// The name of the record.
     public let domainName: [DNSLabel]
 
