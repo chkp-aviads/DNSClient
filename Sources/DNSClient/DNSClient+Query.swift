@@ -70,11 +70,14 @@ extension DNSClient {
 
     /// Cancel all queries that are currently running. This will fail all futures with a `CancelError`
     public func cancelQueries() {
-        dnsDecoder.messageCache.withLockedValue { cache in
-            for (id, query) in cache {
-                cache[id] = nil
-                query.promise.fail(CancelError())
-            }
+        let queries = dnsDecoder.messageCache.withLockedValue { cache -> [SentQuery] in
+            let queries = Array(cache.values)
+            cache = [:]
+            return queries
+        }
+
+        for query in queries {
+            query.promise.fail(CancelError())
         }
     }
 

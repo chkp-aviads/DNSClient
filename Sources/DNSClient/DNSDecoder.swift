@@ -40,14 +40,15 @@ public final class DNSDecoder: ChannelInboundHandler, @unchecked Sendable {
             return
         }
 
-        messageCache.withLockedValue { cache in
+        let query = messageCache.withLockedValue { cache -> SentQuery? in
             guard let query = cache[message.header.id] else {
-                return
+                return nil
             }
 
-            query.promise.succeed(message)
             cache[message.header.id] = nil
+            return query
         }
+        query?.promise.succeed(message)
     }
 
     public static func parse(_ buffer: ByteBuffer) throws -> Message {
@@ -95,12 +96,14 @@ public final class DNSDecoder: ChannelInboundHandler, @unchecked Sendable {
     }
 
     public func errorCaught(context ctx: ChannelHandlerContext, error: Error) {
-        messageCache.withLockedValue { cache in
-            for query in cache.values {
-                query.promise.fail(error)
-            }
-
+        let queries = messageCache.withLockedValue { cache -> [SentQuery] in
+            let queries = Array(cache.values)
             cache = [:]
+            return queries
+        }
+
+        for query in queries {
+            query.promise.fail(error)
         }
     }
 }
