@@ -45,11 +45,11 @@ final class DNSDOTClientTests: XCTestCase {
     
     override func setUpWithError() throws {
         group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        dnsClient = try DNSClient.connectDOT(on: group, host: "dns.google").wait()
-        
+        dnsClient = try DNSClient.connectDOT(on: group, host: "one.one.one.one").wait()
+
 #if canImport(Network)
         nwGroup = NIOTSEventLoopGroup(loopCount: 1)
-        nwDnsClient = try DNSClient.connectTSDOT(on: nwGroup, host: "dns.google").wait()
+        nwDnsClient = try DNSClient.connectTSDOT(on: nwGroup, host: "one.one.one.one").wait()
 #endif
     }
     
@@ -93,11 +93,17 @@ final class DNSDOTClientTests: XCTestCase {
     }
     
     func testDoHARecordGetWireframe() async throws {
-        let base64 = Data(base64Encoded: "q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")!
-        _ = try! DNSDecoder.parse(ByteBuffer(data: base64))
-        let base64Address = "www.topvpn.com".data(using: .utf8)!.base64urlEncodedString()
+        // Build the DNS query message (same as the POST test) and base64url-encode the wire bytes
+        let header = DNSMessageHeader(id: 542, options: [.standardQuery, .recursionDesired], questionCount: 1, answerCount: 0, authorityCount: 0, additionalRecordCount: 0)
+        let labels = ("www.topvpn.com".split(separator: ".").map(String.init)).map(DNSLabel.init)
+        let questions = [QuestionSection(labels: labels, type: .a, questionClass: .internet)]
+        let requestMessage = Message(header: header, questions: questions, answers: [], authorities: [], additionalData: [])
+        var labelIndices = [String: UInt16]()
+        var byteBuffer = try DNSEncoder.encodeMessage(requestMessage, allocator: ByteBufferAllocator(), labelIndices: &labelIndices)
+        let dnsWireData = byteBuffer.readData(length: byteBuffer.readableBytes)!
+        let base64Address = dnsWireData.base64urlEncodedString()
         // Build the Get request
-        let url = URL(string: "https://cloudflare-dns.com/dns-query?dns=\(base64Address)")!  // "https://dns.google/dns-query?dns=\(base64Address)&type=a")!
+        let url = URL(string: "https://cloudflare-dns.com/dns-query?dns=\(base64Address)")!
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.addValue("application/dns-message", forHTTPHeaderField: "Accept")
@@ -219,7 +225,7 @@ final class DNSDOTClientTests: XCTestCase {
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let client = try await DNSClient.connectDOT(
             on: eventLoopGroup.next(),
-            host: "8.8.8.8"
+            host: "one.one.one.one"
         ).get()
         let hostname = "google.com"
         async let result = client.initiateAAAAQuery(host: hostname, port: 0).get()

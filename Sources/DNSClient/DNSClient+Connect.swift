@@ -88,11 +88,54 @@ extension DNSClient {
         }
     }
     
-    public static func connectDOT(on group: EventLoopGroup, host: String, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
+    /// Connect to a DNS-over-TLS server.
+    ///
+    /// Hostname verification is enforced by passing `host` as the SNI / verification
+    /// name to `NIOSSLClientHandler`. The default `TLSConfiguration` raises the
+    /// minimum TLS version to 1.2; callers can override by supplying their own.
+    public static func connectDOT(
+        on group: EventLoopGroup,
+        host: String,
+        port: Int = 853,
+        ttl: Int = 30,
+        tlsConfiguration: TLSConfiguration? = nil
+    ) -> EventLoopFuture<DNSClient> {
         do {
-            let address = try SocketAddress.makeAddressResolvingHost(host, port: 853)
-            let sslContext = try NIOSSLContext(configuration: .makeClientConfiguration())
-            return connectTCP(on: group, config: [address], sslContext: sslContext, ttl: ttl)
+            let configuration: TLSConfiguration = tlsConfiguration ?? {
+                var defaults = TLSConfiguration.makeClientConfiguration()
+                defaults.minimumTLSVersion = .tlsv12
+                return defaults
+            }()
+            let sslContext = try NIOSSLContext(configuration: configuration)
+            let dnsDecoder = DNSDecoder(group: group)
+            return ClientBootstrap(group: group)
+                .channelInitializer { channel in
+                    channel.eventLoop.submit {
+                        try channel.pipeline.syncOperations.addHandlers(
+                            try NIOSSLClientHandler(context: sslContext, serverHostname: host),
+                            ByteToMessageHandler(UInt16FrameDecoder()),
+                            MessageToByteHandler(UInt16FrameEncoder()),
+                            dnsDecoder,
+                            DNSEncoder()
+                        )
+                    }
+                }
+                .connect(host: host, port: port)
+                .flatMap { channel in
+                    guard let remoteAddress = channel.remoteAddress else {
+                        return channel.close().flatMap {
+                            channel.eventLoop.makeFailedFuture(MissingNameservers())
+                        }
+                    }
+                    let client = DNSClient(
+                        channel: channel,
+                        address: remoteAddress,
+                        decoder: dnsDecoder,
+                        ttl: ttl
+                    )
+                    dnsDecoder.mainClient = client
+                    return channel.eventLoop.makeSucceededFuture(client)
+                }
         } catch {
             return group.next().makeFailedFuture(error)
         }
@@ -163,7 +206,7 @@ extension DNSClient {
     ///    - config: DNS servers to connect to
     ///    - ttl: The interval in seconds that the network will use to for DNS TTL
     /// - returns: Future with the NioDNS client
-    public static func connectTCP(on group: EventLoopGroup, config: [SocketAddress], sslContext: NIOSSLContext? = nil, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
+    public static func connectTCP(on group: EventLoopGroup, config: [SocketAddress], sslContext: NIOSSLContext? = nil, serverHostname: String? = nil, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
         guard let address = config.preferred else {
             return group.next().makeFailedFuture(MissingNameservers())
         }
@@ -175,7 +218,7 @@ extension DNSClient {
                 return channel.eventLoop.submit {
                     if let sslContext {
                         return try channel.pipeline.syncOperations.addHandlers(
-                            try! NIOSSLClientHandler(context: sslContext, serverHostname: nil),
+                            try NIOSSLClientHandler(context: sslContext, serverHostname: serverHostname),
                             ByteToMessageHandler(UInt16FrameDecoder()),
                             MessageToByteHandler(UInt16FrameEncoder()),
                             dnsDecoder,
@@ -286,14 +329,40 @@ extension DNSClient {
         }
     }
     
-    public static func connectTSDOT(on group: NIOTSEventLoopGroup, host: String, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
-        do {
-            let address = try SocketAddress.makeAddressResolvingHost(host, port: 853)
-            let options = NWProtocolTLS.Options()
-            return connectTSTCP(on: group, config: [address], tls: options, ttl: ttl)
-        } catch {
-            return group.next().makeFailedFuture(error)
-        }
+    public static func connectTSDOT(on group: NIOTSEventLoopGroup, host: String, port: Int = 853, ttl: Int = 30) -> EventLoopFuture<DNSClient> {
+        let options = NWProtocolTLS.Options()
+        // Explicit SNI is required so Network.framework validates the leaf cert against the hostname.
+        sec_protocol_options_set_tls_server_name(options.securityProtocolOptions, host)
+        sec_protocol_options_set_min_tls_protocol_version(options.securityProtocolOptions, .TLSv12)
+        let dnsDecoder = DNSDecoder(group: group)
+        return NIOTSConnectionBootstrap(group: group)
+            .tlsOptions(options)
+            .channelInitializer { channel in
+                channel.eventLoop.submit {
+                    try channel.pipeline.syncOperations.addHandlers(
+                        ByteToMessageHandler(UInt16FrameDecoder()),
+                        MessageToByteHandler(UInt16FrameEncoder()),
+                        dnsDecoder,
+                        DNSEncoder()
+                    )
+                }
+            }
+            .connect(host: host, port: port)
+            .flatMap { channel in
+                guard let remoteAddress = channel.remoteAddress else {
+                    return channel.close().flatMap {
+                        channel.eventLoop.makeFailedFuture(MissingNameservers())
+                    }
+                }
+                let client = DNSClient(
+                    channel: channel,
+                    address: remoteAddress,
+                    decoder: dnsDecoder,
+                    ttl: ttl
+                )
+                dnsDecoder.mainClient = client
+                return channel.eventLoop.makeSucceededFuture(client)
+            }
     }
 
     /// Connect to the dns server using TCP using NIOTransportServices. This is only available on iOS 12 and above.
