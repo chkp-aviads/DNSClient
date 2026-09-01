@@ -59,6 +59,13 @@ final class DNSDOTClientTests: XCTestCase {
         try perform(nwDnsClient)
 #endif
     }
+
+    func testClient(_ perform: (DNSClient) async throws -> Void) async rethrows -> Void {
+        try await perform(dnsClient)
+#if canImport(Network)
+        try await perform(nwDnsClient)
+#endif
+    }
     
     func testDoHARecordPostWireframe() async throws {
 //        let base64 = Data(base64Encoded: "q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")!
@@ -191,7 +198,7 @@ final class DNSDOTClientTests: XCTestCase {
 
     func testSendQueryCNAME() throws {
         try testClient { dnsClient in
-            let result = try dnsClient.sendQuery(forHost: "www.youtube.com", type: .cName).wait()
+            let result = try dnsClient.sendQuery(forHost: "www.github.com", type: .cName).wait()
             XCTAssertGreaterThanOrEqual(result.header.answerCount, 1, "The returned answers should be greater than or equal to 1")
         }
     }
@@ -203,21 +210,10 @@ final class DNSDOTClientTests: XCTestCase {
         }
     }
     
-    func testSRVRecordsAsyncRequest() throws {
-        testClient { dnsClient in
-            let expectation = self.expectation(description: "getSRVRecords")
-            
-            dnsClient.getSRVRecords(from: "_caldavs._tcp.google.com")
-                .whenComplete { (result) in
-                    switch result {
-                    case .failure(let error):
-                        XCTFail("\(error)")
-                    case .success(let answers):
-                        XCTAssertGreaterThanOrEqual(answers.count, 1, "The returned answers should be greater than or equal to 1")
-                    }
-                    expectation.fulfill()
-                }
-            self.waitForExpectations(timeout: 5, handler: nil)
+    func testSRVRecordsAsyncRequest() async throws {
+        try await testClient { dnsClient in
+            let answers = try await dnsClient.getSRVRecords(from: "_caldavs._tcp.google.com").get()
+            XCTAssertGreaterThanOrEqual(answers.count, 1, "The returned answers should be greater than or equal to 1")
         }
     }
     
@@ -241,9 +237,9 @@ final class DNSDOTClientTests: XCTestCase {
         }
     }
     
-    func testAll() throws {
+    func testAll() async throws {
         try testSRVRecords()
-        try testSRVRecordsAsyncRequest()
+        try await testSRVRecordsAsyncRequest()
         try testSendQueryMX()
         try testSendQueryCNAME()
         try testSendTxtQuery()

@@ -1,4 +1,4 @@
-// swift-tools-version:5.5
+// swift-tools-version:6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -19,10 +19,10 @@ let package = Package(
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/chkp-aviads/swift-nio.git", from: "2.83.0"),
-        .package(url: "https://github.com/chkp-aviads/swift-nio-transport-services.git", from: "1.24.0"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
-        .package(url: "https://github.com/chkp-aviads/swift-nio-ssl.git", from: "2.31.0"),
+        .package(url: "https://github.com/chkp-aviads/swift-nio.git", from: "2.101.5"),
+        .package(url: "https://github.com/chkp-aviads/swift-nio-transport-services.git", from: "1.28.2"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.14.0"),
+        .package(url: "https://github.com/chkp-aviads/swift-nio-ssl.git", from: "2.38.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.

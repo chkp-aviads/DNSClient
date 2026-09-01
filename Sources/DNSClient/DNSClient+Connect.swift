@@ -148,15 +148,17 @@ extension DNSClient {
     ///   - remoteAddress: The address to send the DNS requests to - based on NIO's AddressedEnvelope.
     /// - Returns: A future that will be completed when the channel is ready to use.
     public static func initializeChannel(_ channel: Channel, context: DNSClientContext, asEnvelopeTo remoteAddress: SocketAddress? = nil) -> EventLoopFuture<Void> {
-        if let remoteAddress = remoteAddress {
-            return channel.pipeline.addHandlers(
-                EnvelopeInboundChannel(),
-                context.decoder,
-                EnvelopeOutboundChannel(address: remoteAddress),
-                DNSEncoder()
-            )
-        } else {
-            return channel.pipeline.addHandlers(context.decoder, DNSEncoder())
+        channel.eventLoop.submit {
+            if let remoteAddress = remoteAddress {
+                try channel.pipeline.syncOperations.addHandlers(
+                    EnvelopeInboundChannel(),
+                    context.decoder,
+                    EnvelopeOutboundChannel(address: remoteAddress),
+                    DNSEncoder()
+                )
+            } else {
+                try channel.pipeline.syncOperations.addHandlers(context.decoder, DNSEncoder())
+            }
         }
     }
 
@@ -177,12 +179,14 @@ extension DNSClient {
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEPORT), value: 1)
             .channelInitializer { channel in
-                return channel.pipeline.addHandlers(
-                    EnvelopeInboundChannel(),
-                    dnsDecoder,
-                    EnvelopeOutboundChannel(address: address),
-                    DNSEncoder()
-                )
+                channel.eventLoop.submit {
+                    try channel.pipeline.syncOperations.addHandlers(
+                        EnvelopeInboundChannel(),
+                        dnsDecoder,
+                        EnvelopeOutboundChannel(address: address),
+                        DNSEncoder()
+                    )
+                }
         }
 
 		let ipv4 = address.protocol.rawValue == PF_INET
@@ -288,7 +292,9 @@ extension DNSClient {
         let dnsDecoder = DNSDecoder(group: group)
         
         return NIOTSDatagramBootstrap(group: group).channelInitializer { channel in
-            return channel.pipeline.addHandlers(dnsDecoder, DNSEncoder())
+            channel.eventLoop.submit {
+                try channel.pipeline.syncOperations.addHandlers(dnsDecoder, DNSEncoder())
+            }
         }
         .connect(host: ipAddress, port: port)
         .map { channel -> DNSClient in

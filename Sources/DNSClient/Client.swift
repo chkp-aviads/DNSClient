@@ -43,7 +43,7 @@ public final class DNSClient: Resolver, Sendable {
 }
 
 /// A context that can be used to create a `DNSClient`. This can be used to create only one `DNSClient`, but is useful if you want to use your own `Channel`.
-public struct DNSClientContext {
+public struct DNSClientContext: Sendable {
     internal let decoder: DNSDecoder
     
     /// Create a new `DNSClientContext`. This is used to create a `DNSClient` on a custom `Channel`.

@@ -100,7 +100,7 @@ final class DNSUDPClientTests: XCTestCase {
         XCTAssertEqual(resourceRecord.resource.stringAddress, ipAddress)
         XCTAssertEqual(decoded.header.answerCount, fakeResponse.header.answerCount)
     }
-    
+
     func testStringAddress() throws {
         var buffer = ByteBuffer()
         buffer.writeInteger(0x7F000001 as UInt32)
@@ -154,7 +154,7 @@ final class DNSUDPClientTests: XCTestCase {
 
     func testSendQueryCNAME() throws {
         try testClient { dnsClient in
-            let result = try dnsClient.sendQuery(forHost: "www.youtube.com", type: .cName).wait()
+            let result = try dnsClient.sendQuery(forHost: "www.github.com", type: .cName).wait()
             XCTAssertGreaterThanOrEqual(result.header.answerCount, 1, "The returned answers should be greater than or equal to 1")
         }
     }
@@ -166,21 +166,10 @@ final class DNSUDPClientTests: XCTestCase {
         }
     }
     
-    func testSRVRecordsAsyncRequest() throws {
-        testClient { dnsClient in
-            let expectation = self.expectation(description: "getSRVRecords")
-            
-            dnsClient.getSRVRecords(from: "_caldavs._tcp.google.com")
-                .whenComplete { (result) in
-                    switch result {
-                    case .failure(let error):
-                        XCTFail("\(error)")
-                    case .success(let answers):
-                        XCTAssertGreaterThanOrEqual(answers.count, 1, "The returned answers should be greater than or equal to 1")
-                    }
-                    expectation.fulfill()
-                }
-            self.waitForExpectations(timeout: 5, handler: nil)
+    func testSRVRecordsAsyncRequest() async throws {
+        try await testClient { dnsClient in
+            let answers = try await dnsClient.getSRVRecords(from: "_caldavs._tcp.google.com").get()
+            XCTAssertGreaterThanOrEqual(answers.count, 1, "The returned answers should be greater than or equal to 1")
         }
     }
     

@@ -131,6 +131,8 @@ extension ByteBuffer {
             try writeRecord(resourceRecord, labelIndices: &labelIndices)
         case .ptr(let resourceRecord):
             try writeRecord(resourceRecord, labelIndices: &labelIndices)
+        case .soa(let resourceRecord):
+            try writeRecord(resourceRecord, labelIndices: &labelIndices)
         case .other(let resourceRecord):
             try writeRecord(resourceRecord, labelIndices: &labelIndices)
         }
@@ -219,6 +221,12 @@ extension ByteBuffer {
             }
 
             return .ptr(ptr)
+        case .soa:
+            guard let soa = make(SOARecord.self) else {
+                return nil
+            }
+
+            return .soa(soa)
             default:
             break
         }

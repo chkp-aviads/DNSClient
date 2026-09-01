@@ -317,7 +317,11 @@ public enum Record : Sendable {
 
     /// A domain name pointer (ie. in-addr.arpa)
     case ptr(ResourceRecord<PTRRecord>)
-    
+
+    /// Start of a zone of authority. In the authority section of a negative answer, this is what
+    /// makes the negative result cacheable (RFC 2308).
+    case soa(ResourceRecord<SOARecord>)
+
     /// Any other record. This is used for records that are not yet supported through convenience methods.
     case other(ResourceRecord<ByteBuffer>)
 }
