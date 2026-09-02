@@ -1,5 +1,4 @@
 import NIO
-import Network
 import NIOSSL
 import Foundation
 
@@ -260,6 +259,7 @@ fileprivate extension Array where Element == SocketAddress {
 }
 
 #if canImport(Network)
+import Network
 import NIOTransportServices
 
 @available(iOS 12, *)

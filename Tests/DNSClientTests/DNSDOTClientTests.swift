@@ -5,6 +5,10 @@
 //  Created by Aviad Segev on 19/05/2024.
 //
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+import NIOFoundationCompat
 import XCTest
 import NIO
 import NIOSSL

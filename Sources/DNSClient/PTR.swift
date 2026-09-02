@@ -81,74 +81,18 @@ extension DNSClient {
             throw IOError(errnoCode: errno, reason: #function)
         }
         
-        #if canImport(Glibc)
-        let inAddrArpaDomain = String(format: "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
-                      ipv6Addr.__in6_u.__u6_addr8.0,
-                      ipv6Addr.__in6_u.__u6_addr8.1,
-                      ipv6Addr.__in6_u.__u6_addr8.2,
-                      ipv6Addr.__in6_u.__u6_addr8.3,
-                      ipv6Addr.__in6_u.__u6_addr8.4,
-                      ipv6Addr.__in6_u.__u6_addr8.5,
-                      ipv6Addr.__in6_u.__u6_addr8.6,
-                      ipv6Addr.__in6_u.__u6_addr8.7,
-                      ipv6Addr.__in6_u.__u6_addr8.8,
-                      ipv6Addr.__in6_u.__u6_addr8.9,
-                      ipv6Addr.__in6_u.__u6_addr8.10,
-                      ipv6Addr.__in6_u.__u6_addr8.11,
-                      ipv6Addr.__in6_u.__u6_addr8.12,
-                      ipv6Addr.__in6_u.__u6_addr8.13,
-                      ipv6Addr.__in6_u.__u6_addr8.14,
-                      ipv6Addr.__in6_u.__u6_addr8.15
-        ).reversed()
-         .map { "\($0)" }
-         .joined(separator: ".")
-         .appending(".ip6.arpa.")
-        
-        #elseif canImport(Musl)
-        let inAddrArpaDomain = String(format: "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
-                      ipv6Addr.__in6_union.__s6_addr.0,
-                      ipv6Addr.__in6_union.__s6_addr.1,
-                      ipv6Addr.__in6_union.__s6_addr.2,
-                      ipv6Addr.__in6_union.__s6_addr.3,
-                      ipv6Addr.__in6_union.__s6_addr.4,
-                      ipv6Addr.__in6_union.__s6_addr.5,
-                      ipv6Addr.__in6_union.__s6_addr.6,
-                      ipv6Addr.__in6_union.__s6_addr.7,
-                      ipv6Addr.__in6_union.__s6_addr.8,
-                      ipv6Addr.__in6_union.__s6_addr.9,
-                      ipv6Addr.__in6_union.__s6_addr.10,
-                      ipv6Addr.__in6_union.__s6_addr.11,
-                      ipv6Addr.__in6_union.__s6_addr.12,
-                      ipv6Addr.__in6_union.__s6_addr.13,
-                      ipv6Addr.__in6_union.__s6_addr.14,
-                      ipv6Addr.__in6_union.__s6_addr.15
-        ).reversed()
-         .map { "\($0)" }
-         .joined(separator: ".")
-         .appending(".ip6.arpa.")
-        #else
-        let inAddrArpaDomain = String(format: "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
-                      ipv6Addr.__u6_addr.__u6_addr8.0,
-                      ipv6Addr.__u6_addr.__u6_addr8.1,
-                      ipv6Addr.__u6_addr.__u6_addr8.2,
-                      ipv6Addr.__u6_addr.__u6_addr8.3,
-                      ipv6Addr.__u6_addr.__u6_addr8.4,
-                      ipv6Addr.__u6_addr.__u6_addr8.5,
-                      ipv6Addr.__u6_addr.__u6_addr8.6,
-                      ipv6Addr.__u6_addr.__u6_addr8.7,
-                      ipv6Addr.__u6_addr.__u6_addr8.8,
-                      ipv6Addr.__u6_addr.__u6_addr8.9,
-                      ipv6Addr.__u6_addr.__u6_addr8.10,
-                      ipv6Addr.__u6_addr.__u6_addr8.11,
-                      ipv6Addr.__u6_addr.__u6_addr8.12,
-                      ipv6Addr.__u6_addr.__u6_addr8.13,
-                      ipv6Addr.__u6_addr.__u6_addr8.14,
-                      ipv6Addr.__u6_addr.__u6_addr8.15
-        ).reversed()
-         .map { "\($0)" }
-         .joined(separator: ".")
-         .appending(".ip6.arpa.")
-        #endif
+        // The `in6_addr` union member is named differently on every libc -- Darwin
+        // `__u6_addr.__u6_addr8`, glibc `__in6_u.__u6_addr8`, musl `__in6_union.__s6_addr`,
+        // Bionic `in6_u.u6_addr8`. Reading the 16 bytes directly is ABI-agnostic and shorter than
+        // any one of those branches, let alone four.
+        let hexDigits = Array("0123456789abcdef")
+        let nibbles = withUnsafeBytes(of: ipv6Addr) { raw in
+            raw.flatMap { [hexDigits[Int($0 >> 4)], hexDigits[Int($0 & 0x0f)]] }
+        }
+        let inAddrArpaDomain = nibbles.reversed()
+            .map(String.init)
+            .joined(separator: ".")
+            .appending(".ip6.arpa.")
         
         return self.sendQuery(forHost: inAddrArpaDomain, type: .ptr).map { message in
             return message.answers.compactMap { answer in

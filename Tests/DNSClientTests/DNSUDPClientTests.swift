@@ -222,7 +222,9 @@ final class DNSUDPClientTests: XCTestCase {
     func testipv6InverseAddressInvalidInput() throws {
         XCTAssertThrowsError(try dnsClient.ipv6InverseAddress(":::0").wait()) { error in
             
-            #if os(Linux)
+            // Android reports the straight-apostrophe form too, so key off Darwin rather
+            // than assuming everything non-Linux is Darwin.
+            #if !canImport(Darwin)
             XCTAssertEqual(error.localizedDescription , "The operation could not be completed. (NIOCore.IOError error 1.)")
             #else
             XCTAssertEqual(error.localizedDescription , "The operation couldn’t be completed. (NIOCore.IOError error 1.)")

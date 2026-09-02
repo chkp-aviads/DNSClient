@@ -32,6 +32,8 @@ let package = Package(
             dependencies: [
                 .target(name: "DNSClient"),
                 .product(name: "NIO", package: "swift-nio"),
+                // DNSDOTClientTests uses ByteBuffer.readData.
+                .product(name: "NIOFoundationCompat", package: "swift-nio"),
             ]),
         .target(
             name: "DNSClient",
